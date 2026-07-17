@@ -89,6 +89,6 @@ body {
 }
 
 /* Cursor personalizado diminuto para elementos con tooltip 'title' para evitar que obstruya la lectura del texto nativo */
-[title] {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="2" fill="%233b82f6" stroke="white" stroke-width="1.2"/></svg>') 5 5, auto !important;
+[title], [title] * {
+  cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMCcgaGVpZ2h0PScxMCcgdmlld0JveD0nMCAwIDEwIDEwJz48Y2lyY2xlIGN4PSc1JyBjeT0nNScgcj0nMicgZmlsbD0nIzNiODJmNicgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPScxLjInLz48L3N2Zz4=') 5 5, auto !important;
 }
