@@ -453,21 +453,6 @@ export default function ServiciosTabSection({
           </p>
         </Card>
 
-        {/* KPI: Impacto Comunitario */}
-        <Card className="glass glass-hover flex flex-col justify-between p-4.5 rounded-xl border border-white/10">
-          <div>
-            <span className="text-[10px] text-[var(--muted)] font-black uppercase tracking-wider block flex items-center gap-1">
-              <BookOpen size={12} className="text-amber-500" />
-              Impacto Comunitario
-            </span>
-            <h4 className="text-2xl font-black mt-2 text-amber-400">{impactoTotal.toLocaleString()}</h4>
-          </div>
-          <p className="text-[10px] text-amber-300 font-semibold border-t border-white/5 pt-2 mt-2 flex justify-between items-center">
-            <span>Talleres / Capacitaciones:</span>
-            <span className="font-extrabold">{impactoPct.toFixed(1)}%</span>
-          </p>
-        </Card>
-
         {/* KPI: Servicios Complementarios */}
         <Card className="glass glass-hover flex flex-col justify-between p-4.5 rounded-xl border border-white/10">
           <div>
@@ -484,6 +469,21 @@ export default function ServiciosTabSection({
           <p className="text-[10px] text-emerald-300 font-semibold border-t border-white/5 pt-2 mt-2 flex justify-between items-center">
             <span>Servicios no-PC:</span>
             <span className="font-extrabold">{(totalAtenciones - totalUsoPc).toLocaleString()}</span>
+          </p>
+        </Card>
+
+        {/* KPI: Impacto Comunitario */}
+        <Card className="glass glass-hover flex flex-col justify-between p-4.5 rounded-xl border border-white/10">
+          <div>
+            <span className="text-[10px] text-[var(--muted)] font-black uppercase tracking-wider block flex items-center gap-1">
+              <BookOpen size={12} className="text-amber-500" />
+              Impacto Comunitario
+            </span>
+            <h4 className="text-2xl font-black mt-2 text-amber-400">{impactoTotal.toLocaleString()}</h4>
+          </div>
+          <p className="text-[10px] text-amber-300 font-semibold border-t border-white/5 pt-2 mt-2 flex justify-between items-center">
+            <span>Talleres / Capacitaciones:</span>
+            <span className="font-extrabold">{impactoPct.toFixed(1)}%</span>
           </p>
         </Card>
 
