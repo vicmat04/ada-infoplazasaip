@@ -175,7 +175,7 @@ const CustomGenderTypeTooltip = ({ active, payload, label }: CustomTooltipProps)
 const CustomPieTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0];
-    const totalVal = data.payload?.totalSum || 1;
+    const totalVal = Number(data.payload?.totalSum) || 1;
     const pct = ((data.value || 0) / totalVal) * 100;
     return (
       <div className="glass rounded-lg p-2.5 text-xs border border-white/10 shadow-xl">
