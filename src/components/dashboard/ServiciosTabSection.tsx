@@ -23,7 +23,8 @@ import {
   Laptop, 
   BookOpen, 
   Percent, 
-  Activity 
+  Activity,
+  HelpCircle
 } from 'lucide-react';
 
 interface ServiciosTabSectionProps {
@@ -467,12 +468,16 @@ export default function ServiciosTabSection({
           </p>
         </Card>
 
-        {/* KPI: Tasa de Diversificación */}
+        {/* KPI: Servicios Complementarios */}
         <Card className="glass glass-hover flex flex-col justify-between p-4.5 rounded-xl border border-white/10">
           <div>
-            <span className="text-[10px] text-[var(--muted)] font-black uppercase tracking-wider block flex items-center gap-1">
+            <span 
+              className="text-[10px] text-[var(--muted)] font-black uppercase tracking-wider block flex items-center gap-1 cursor-help select-none"
+              title="Representa la proporción de atenciones brindadas en servicios con valor agregado que no son el uso básico de computadoras (como talleres, copias, impresiones, etc.)."
+            >
               <Percent size={12} className="text-emerald-500" />
-              Tasa Diversificación
+              Servicios Complementarios
+              <HelpCircle size={10} className="text-slate-500 hover:text-slate-300 transition-colors" />
             </span>
             <h4 className="text-2xl font-black mt-2 text-emerald-400">{diversificacionPct.toFixed(1)}%</h4>
           </div>
