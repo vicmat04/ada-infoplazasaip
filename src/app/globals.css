@@ -90,27 +90,28 @@ body {
 
 /* ──────────────────────────────────────────────────────────────────────────
    CSS Tooltip System
-   Reemplaza el tooltip nativo del browser (que aparece debajo y no se puede
-   controlar) con un tooltip CSS puro que aparece ARRIBA del elemento.
-   Elimina el cursor ? (cursor: help) usando cursor: default.
+   Los tooltips nativos del browser no se pueden posicionar ni suprimir con CSS.
+   TooltipObserver.tsx convierte automáticamente title → data-tooltip en el DOM
+   para que el browser nunca muestre el nativo. Este CSS renderiza el tooltip
+   custom arriba del elemento usando el data-tooltip.
 ────────────────────────────────────────────────────────────────────────── */
-[title] {
+[data-tooltip] {
   position: relative;
   cursor: default !important;
 }
 
-/* No aplicar a inputs, selects ni elements interactivos que usan title para otras razones */
-button[title],
-a[title],
-input[title],
-select[title],
-textarea[title] {
+/* Preservar cursor pointer en controles interactivos */
+button[data-tooltip],
+a[data-tooltip],
+input[data-tooltip],
+select[data-tooltip],
+textarea[data-tooltip] {
   cursor: pointer !important;
 }
 
-/* Contenedor del tooltip (burbuja) */
-[title]::after {
-  content: attr(title);
+/* Burbuja del tooltip */
+[data-tooltip]::after {
+  content: attr(data-tooltip);
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
@@ -138,7 +139,7 @@ textarea[title] {
 }
 
 /* Flechita del tooltip */
-[title]::before {
+[data-tooltip]::before {
   content: '';
   position: absolute;
   bottom: calc(100% + 2px);
@@ -153,21 +154,20 @@ textarea[title] {
   z-index: 9999;
 }
 
-[title]:hover::after,
-[title]:hover::before {
+[data-tooltip]:hover::after,
+[data-tooltip]:hover::before {
   opacity: 1;
   visibility: visible;
 }
 
-/* Tema claro: tooltip más suave */
-:root.light [title]::after {
+/* Tema claro */
+:root.light [data-tooltip]::after {
   background: rgba(255, 255, 255, 0.97);
   color: #1e293b;
   border-color: rgba(0, 0, 0, 0.12);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-:root.light [title]::before {
+:root.light [data-tooltip]::before {
   border-top-color: rgba(255, 255, 255, 0.97);
 }
-
