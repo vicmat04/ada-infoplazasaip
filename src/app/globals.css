@@ -88,7 +88,86 @@ body {
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Cursor personalizado diminuto para elementos con tooltip 'title' para evitar que obstruya la lectura del texto nativo */
-[title], [title] * {
-  cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMCcgaGVpZ2h0PScxMCcgdmlld0JveD0nMCAwIDEwIDEwJz48Y2lyY2xlIGN4PSc1JyBjeT0nNScgcj0nMicgZmlsbD0nIzNiODJmNicgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPScxLjInLz48L3N2Zz4=') 5 5, auto !important;
+/* ──────────────────────────────────────────────────────────────────────────
+   CSS Tooltip System
+   Reemplaza el tooltip nativo del browser (que aparece debajo y no se puede
+   controlar) con un tooltip CSS puro que aparece ARRIBA del elemento.
+   Elimina el cursor ? (cursor: help) usando cursor: default.
+────────────────────────────────────────────────────────────────────────── */
+[title] {
+  position: relative;
+  cursor: default !important;
 }
+
+/* No aplicar a inputs, selects ni elements interactivos que usan title para otras razones */
+button[title],
+a[title],
+input[title],
+select[title],
+textarea[title] {
+  cursor: pointer !important;
+}
+
+/* Contenedor del tooltip (burbuja) */
+[title]::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  text-transform: none;
+  letter-spacing: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Flechita del tooltip */
+[title]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(15, 23, 42, 0.95);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+  z-index: 9999;
+}
+
+[title]:hover::after,
+[title]:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Tema claro: tooltip más suave */
+:root.light [title]::after {
+  background: rgba(255, 255, 255, 0.97);
+  color: #1e293b;
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+:root.light [title]::before {
+  border-top-color: rgba(255, 255, 255, 0.97);
+}
+
