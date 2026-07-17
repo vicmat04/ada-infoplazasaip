@@ -294,6 +294,7 @@ export default function Page() {
                   data={dashboardData} 
                   filters={filters} 
                   isLoading={isPending && !dashboardData}
+                  allInfoplazas={allInfoplazas}
                 />
               )}
 
@@ -303,6 +304,7 @@ export default function Page() {
                   data={dashboardData} 
                   filters={filters} 
                   isLoading={isPending && !dashboardData}
+                  allInfoplazas={allInfoplazas}
                 />
               )}
 

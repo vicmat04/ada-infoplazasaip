@@ -81,6 +81,14 @@ interface ServiciosTabSectionProps {
     infoplaza: number;
   };
   isLoading?: boolean;
+  allInfoplazas?: Array<{
+    numero: number;
+    nombre: string;
+    regional: string;
+    provincia: string;
+    distrito: string;
+    corregimiento: string;
+  }>;
 }
 
 // Colores de la paleta premium
@@ -103,7 +111,7 @@ interface CustomTooltipProps {
     color: string;
     payload: {
       total?: number;
-      [key: string]: string | number | boolean | undefined | null | object;
+      [key: string]: unknown;
     };
   }>;
   label?: string;
@@ -169,11 +177,15 @@ const CustomBarTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   return null;
 };
 
-export default function ServiciosTabSection({ data, filters, isLoading = false }: ServiciosTabSectionProps) {
+export default function ServiciosTabSection({ 
+  data, 
+  filters, 
+  isLoading = false,
+  allInfoplazas = []
+}: ServiciosTabSectionProps) {
   // Estados para la tabla matriz
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({
     key: 'total',
     direction: 'desc'
@@ -268,7 +280,16 @@ export default function ServiciosTabSection({ data, filters, isLoading = false }
   };
 
   const filteredAndSortedRows = useMemo(() => {
-    const list = data?.serviciosPorInfoplaza || [];
+    const rawList = data?.serviciosPorInfoplaza || [];
+    
+    // Cruzar con allInfoplazas para obtener el distrito
+    const list = rawList.map(item => {
+      const match = allInfoplazas?.find(ip => ip.numero === item.numero);
+      return {
+        ...item,
+        distrito: match?.distrito || 'N/A'
+      };
+    });
     
     // Filtrar localmente por término de búsqueda (Ignora mayúsculas/minúsculas y tildes de forma segura)
     const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -281,7 +302,8 @@ export default function ServiciosTabSection({ data, filters, isLoading = false }
         normalize(item.nombre).includes(searchNormalized) || 
         item.numero.toString().includes(searchNormalized) ||
         normalize(item.regional).includes(searchNormalized) ||
-        normalize(item.provincia).includes(searchNormalized)
+        normalize(item.provincia).includes(searchNormalized) ||
+        normalize(item.distrito).includes(searchNormalized)
       );
     }
 
@@ -304,26 +326,18 @@ export default function ServiciosTabSection({ data, filters, isLoading = false }
     }
 
     return result;
-  }, [data?.serviciosPorInfoplaza, searchTerm, sortConfig]);
+  }, [data?.serviciosPorInfoplaza, searchTerm, sortConfig, allInfoplazas]);
 
   // Paginación
   const totalRows = filteredAndSortedRows.length;
-  const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
   const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * rowsPerPage;
-    return filteredAndSortedRows.slice(start, start + rowsPerPage);
-  }, [filteredAndSortedRows, currentPage, rowsPerPage]);
+    return filteredAndSortedRows.slice(0, visibleCount);
+  }, [filteredAndSortedRows, visibleCount]);
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
-
-  // Restablecer página al cambiar búsqueda o cantidad de filas
+  // Restablecer cantidad visible al cambiar búsqueda
   React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, rowsPerPage]);
+    setVisibleCount(10);
+  }, [searchTerm]);
 
   // 5. Exportación a CSV
   const handleExportCSV = () => {
@@ -332,6 +346,7 @@ export default function ServiciosTabSection({ data, filters, isLoading = false }
       'Nombre',
       'Regional',
       'Provincia',
+      'Distrito',
       'Uso de PC',
       'Copia',
       'Impresion',
@@ -347,6 +362,7 @@ export default function ServiciosTabSection({ data, filters, isLoading = false }
       `"${row.nombre.replace(/"/g, '""')}"`,
       `"${row.regional}"`,
       `"${row.provincia}"`,
+      `"${(row as any).distrito || 'N/A'}"`,
       row.uso_de_pc,
       row.copia,
       row.impresion,
@@ -721,42 +737,27 @@ export default function ServiciosTabSection({ data, filters, isLoading = false }
           </table>
         </div>
 
-        {/* Paginación y Contador */}
-        <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-[var(--muted)]">
-          <div className="flex items-center gap-2">
-            <span>Mostrar</span>
-            <select
-              value={rowsPerPage}
-              onChange={(e) => setRowsPerPage(Number(e.target.value))}
-              className="px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-bold"
+        {/* Mostrar más y progreso */}
+        <div className="p-3 border-t border-white/5 bg-white/[0.01] flex flex-col items-center justify-center gap-1.5 font-semibold">
+          <span className="text-[10px] text-[var(--muted)]">
+            Mostrando {paginatedRows.length} de {totalRows} registros
+          </span>
+          
+          {visibleCount < totalRows ? (
+            <button
+              onClick={() => setVisibleCount(prev => Math.min(prev + 10, totalRows))}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold border border-blue-500/50 hover:border-blue-400 shadow-md transition-all cursor-pointer"
             >
-              <option value={10}>10 filas</option>
-              <option value={25}>25 filas</option>
-              <option value={50}>50 filas</option>
-              <option value={100}>100 filas</option>
-            </select>
-            <span>de {totalRows.toLocaleString()} registros</span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <span>Pág. {currentPage} de {totalPages}</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+              Mostrar más
+            </button>
+          ) : (
+            <button
+              disabled
+              className="px-3 py-1.5 bg-white/5 text-slate-500 rounded-lg text-[10px] font-bold border border-white/5 cursor-not-allowed"
+            >
+              No hay más registros
+            </button>
+          )}
         </div>
 
       </Card>

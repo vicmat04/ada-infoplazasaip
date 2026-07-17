@@ -84,6 +84,14 @@ interface VisitantesTabSectionProps {
     infoplaza: number;
   };
   isLoading?: boolean;
+  allInfoplazas?: Array<{
+    numero: number;
+    nombre: string;
+    regional: string;
+    provincia: string;
+    distrito: string;
+    corregimiento: string;
+  }>;
 }
 
 // Colores demográficos premium
@@ -198,7 +206,7 @@ interface SortButtonProps {
 }
 
 const SortButton = ({ columnKey, label, sortConfig, onSort }: SortButtonProps) => {
-  const isActive = sortConfig?.key === columnKey;
+  const isActive = sortConfig && sortConfig.key === columnKey;
   return (
     <button 
       onClick={() => onSort(columnKey)} 
@@ -212,10 +220,14 @@ const SortButton = ({ columnKey, label, sortConfig, onSort }: SortButtonProps) =
   );
 };
 
-export default function VisitantesTabSection({ data, filters, isLoading = false }: VisitantesTabSectionProps) {
+export default function VisitantesTabSection({ 
+  data, 
+  filters, 
+  isLoading = false,
+  allInfoplazas = []
+}: VisitantesTabSectionProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({
     key: 'total',
     direction: 'desc'
@@ -321,7 +333,16 @@ export default function VisitantesTabSection({ data, filters, isLoading = false 
   };
 
   const filteredAndSortedRows = useMemo(() => {
-    const list = data?.visitantesPorInfoplaza || [];
+    const rawList = data?.visitantesPorInfoplaza || [];
+    
+    // Cruzar con allInfoplazas para obtener el distrito
+    const list = rawList.map(item => {
+      const match = allInfoplazas?.find(ip => ip.numero === item.numero);
+      return {
+        ...item,
+        distrito: match?.distrito || 'N/A'
+      };
+    });
     
     // Normalizar cadenas para búsqueda case-insensitive
     const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -333,7 +354,8 @@ export default function VisitantesTabSection({ data, filters, isLoading = false 
         normalize(item.nombre).includes(searchNormalized) || 
         item.numero.toString().includes(searchNormalized) ||
         normalize(item.regional).includes(searchNormalized) ||
-        normalize(item.provincia).includes(searchNormalized)
+        normalize(item.provincia).includes(searchNormalized) ||
+        normalize(item.distrito).includes(searchNormalized)
       );
     }
 
@@ -355,20 +377,17 @@ export default function VisitantesTabSection({ data, filters, isLoading = false 
     }
 
     return result;
-  }, [data, searchTerm, sortConfig]);
+  }, [data, searchTerm, sortConfig, allInfoplazas]);
 
   // Paginación
-  const totalPages = Math.ceil(filteredAndSortedRows.length / rowsPerPage);
   const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * rowsPerPage;
-    return filteredAndSortedRows.slice(start, start + rowsPerPage);
-  }, [filteredAndSortedRows, currentPage, rowsPerPage]);
+    return filteredAndSortedRows.slice(0, visibleCount);
+  }, [filteredAndSortedRows, visibleCount]);
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
+  // Restablecer cantidad visible al cambiar búsqueda
+  React.useEffect(() => {
+    setVisibleCount(10);
+  }, [searchTerm]);
 
   // Exportar a CSV contextualizado
   const handleExportCSV = () => {
@@ -377,6 +396,7 @@ export default function VisitantesTabSection({ data, filters, isLoading = false 
       'Nombre',
       'Regional',
       'Provincia',
+      'Distrito',
       'Total Visitantes',
       'Masculino',
       'Femenino',
@@ -393,6 +413,7 @@ export default function VisitantesTabSection({ data, filters, isLoading = false 
       `"${r.nombre.replace(/"/g, '""')}"`,
       `"${r.regional.replace(/"/g, '""')}"`,
       `"${r.provincia.replace(/"/g, '""')}"`,
+      `"${(r as any).distrito || 'N/A'}"`,
       r.total,
       r.masculino,
       r.femenino,
@@ -815,7 +836,6 @@ export default function VisitantesTabSection({ data, filters, isLoading = false 
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(1); // Reiniciar paginado en búsqueda
                 }}
                 className="w-full pl-9 pr-4 py-1.5 rounded-lg bg-white/5 border border-[var(--card-border)] text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20 transition-all"
               />
@@ -883,46 +903,28 @@ export default function VisitantesTabSection({ data, filters, isLoading = false 
           )}
         </CardContent>
 
-        {/* Paginación y Contador */}
+        {/* Mostrar más y progreso */}
         {filteredAndSortedRows.length > 0 && (
-          <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-[var(--muted)]">
-            <div className="flex items-center gap-2">
-              <span>Mostrar</span>
-              <select
-                value={rowsPerPage}
-                onChange={(e) => {
-                  setRowsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-slate-300 focus:outline-none focus:border-pink-500 font-bold"
+          <div className="p-3 border-t border-white/5 bg-white/[0.01] flex flex-col items-center justify-center gap-1.5 font-semibold text-xs">
+            <span className="text-[10px] text-[var(--muted)]">
+              Mostrando {paginatedRows.length} de {filteredAndSortedRows.length} registros
+            </span>
+            
+            {visibleCount < filteredAndSortedRows.length ? (
+              <button
+                onClick={() => setVisibleCount(prev => Math.min(prev + 10, filteredAndSortedRows.length))}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold border border-blue-500/50 hover:border-blue-400 shadow-md transition-all cursor-pointer"
               >
-                <option value={10}>10 filas</option>
-                <option value={25}>25 filas</option>
-                <option value={50}>50 filas</option>
-                <option value={100}>100 filas</option>
-              </select>
-              <span>de {filteredAndSortedRows.length.toLocaleString()} registros</span>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <span>Pág. {currentPage} de {totalPages}</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
+                Mostrar más
+              </button>
+            ) : (
+              <button
+                disabled
+                className="px-3 py-1.5 bg-white/5 text-slate-500 rounded-lg text-[10px] font-bold border border-white/5 cursor-not-allowed"
+              >
+                No hay más registros
+              </button>
+            )}
           </div>
         )}
       </Card>
