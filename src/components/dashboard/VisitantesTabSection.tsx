@@ -323,6 +323,19 @@ export default function VisitantesTabSection({
     return `${filters.mes ? `${filters.mes} ` : ''}${filters.anio}`;
   }, [filters]);
 
+  // Preparar tendencia para gráficos de Recharts cuando hay un solo mes (para que trace línea y área)
+  const displayTrend = useMemo(() => {
+    const trend = data?.tendenciaVisitantes || [];
+    if (trend.length === 1) {
+      return [
+        { mes: '', masculino: 0, femenino: 0, total: 0 },
+        { ...trend[0] },
+        { mes: '', masculino: 0, femenino: 0, total: 0 }
+      ];
+    }
+    return trend;
+  }, [data?.tendenciaVisitantes]);
+
   // Lógica de ordenamiento de tabla
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc';
@@ -574,7 +587,7 @@ export default function VisitantesTabSection({
           <CardContent className="h-80 w-full p-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
-                data={data?.tendenciaVisitantes || []}
+                data={displayTrend}
                 margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
               >
                 <defs>

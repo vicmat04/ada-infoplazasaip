@@ -270,6 +270,19 @@ export default function ServiciosTabSection({
     return `${filters.mes ? `${filters.mes} ` : ''}${filters.anio}`;
   }, [filters]);
 
+  // Preparar tendencia para gráficos de Recharts cuando hay un solo mes (para que trace línea y área)
+  const displayTrend = useMemo(() => {
+    const trend = data?.tendenciaServicios || [];
+    if (trend.length === 1) {
+      return [
+        { mes: '', uso_de_pc: 0, copia: 0, impresion: 0, consulta: 0, taller: 0, reunion: 0, otros: 0, total: 0 },
+        { ...trend[0] },
+        { mes: '', uso_de_pc: 0, copia: 0, impresion: 0, consulta: 0, taller: 0, reunion: 0, otros: 0, total: 0 }
+      ];
+    }
+    return trend;
+  }, [data?.tendenciaServicios]);
+
   // 4. Lógica de Ordenamiento y Filtrado de la Tabla
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc';
@@ -501,7 +514,7 @@ export default function ServiciosTabSection({
           <CardContent className="h-80 w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart 
-                data={data.tendenciaServicios || []} 
+                data={displayTrend} 
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
