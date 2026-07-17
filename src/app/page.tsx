@@ -84,6 +84,14 @@ export default function Page() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedIpData, setSelectedIpData] = useState<any>(null);
 
+  // Forzar redirección de pestañas restringidas fuera de entorno de desarrollo local
+  useEffect(() => {
+    const isDev = process.env.NODE_ENV === 'development';
+    if (!isDev && (activeTab === 'reportes' || activeTab === 'administracion')) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab]);
+
   // Inicializar tema, catálogo de infoplazas y períodos dinámicos
   useEffect(() => {
     // Tema por defecto oscuro

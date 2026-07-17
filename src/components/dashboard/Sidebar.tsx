@@ -33,13 +33,16 @@ export default function Sidebar({
   isMobileOpen = false,
   setIsMobileOpen
 }: SidebarProps) {
+  const isDev = process.env.NODE_ENV === 'development';
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'servicios', label: 'Servicios', icon: Activity },
     { id: 'visitantes', label: 'Visitantes', icon: Users },
     { id: 'sincronizacion', label: 'Sincronización', icon: RefreshCw },
-    { id: 'reportes', label: 'Reportes', icon: FileText },
-    { id: 'administracion', label: 'Administración', icon: Settings },
+    ...(isDev ? [
+      { id: 'reportes', label: 'Reportes', icon: FileText },
+      { id: 'administracion', label: 'Administración', icon: Settings },
+    ] : []),
   ];
 
   return (
