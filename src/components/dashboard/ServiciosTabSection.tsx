@@ -225,7 +225,7 @@ export default function ServiciosTabSection({
     });
 
     const pcPercent = total > 0 ? (pc / total) * 100 : 0;
-    const impacTotal = tall + reun;
+    const impacTotal = tall;
     const impacPercent = total > 0 ? (impacTotal / total) * 100 : 0;
     const divPercent = total > 0 ? ((total - pc) / total) * 100 : 0;
 
@@ -462,7 +462,7 @@ export default function ServiciosTabSection({
             <h4 className="text-2xl font-black mt-2 text-amber-400">{impactoTotal.toLocaleString()}</h4>
           </div>
           <p className="text-[10px] text-amber-300 font-semibold border-t border-white/5 pt-2 mt-2 flex justify-between items-center">
-            <span>Talleres + Reuniones:</span>
+            <span>Talleres:</span>
             <span className="font-extrabold">{impactoPct.toFixed(1)}%</span>
           </p>
         </Card>
