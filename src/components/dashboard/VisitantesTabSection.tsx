@@ -654,7 +654,7 @@ export default function VisitantesTabSection({
           <CardContent className="h-80 w-full p-2 flex flex-col justify-between">
             {pieData.length > 0 ? (
               <>
-                <div className="h-60 w-full">
+                <div className="relative h-60 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -676,6 +676,11 @@ export default function VisitantesTabSection({
                       <Tooltip content={<CustomPieTooltip />} />
                     </PieChart>
                   </ResponsiveContainer>
+                  {/* Texto en el centro de la dona */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                    <span className="text-[10px] uppercase font-bold text-[var(--muted)] tracking-wider">Total</span>
+                    <span className="text-xl font-black text-slate-100">{totalVisitantes.toLocaleString()}</span>
+                  </div>
                 </div>
                 {/* Leyendas compactas */}
                 <div className="grid grid-cols-3 gap-2 px-1 text-[9px] font-semibold text-slate-300">
