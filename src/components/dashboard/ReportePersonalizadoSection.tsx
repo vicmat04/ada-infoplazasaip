@@ -3,13 +3,10 @@
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { 
-  FileSpreadsheet, 
   Download, 
   Filter, 
   Calendar, 
   MapPin, 
-  CheckSquare, 
-  Square, 
   RefreshCw, 
   Search, 
   Layers, 
@@ -17,7 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
-  Check
+  Info,
+  CheckCircle
 } from 'lucide-react';
 import { getCustomReportData } from '../../app/actions';
 
@@ -35,24 +33,15 @@ interface ReportePersonalizadoSectionProps {
   availablePeriods: Array<{ anio: number; mes: string }>;
 }
 
-// Definición de las Columnas Dinámicas Configurables
-interface ColumnOption {
+// Columnas de Métricas Seleccionables por el Usuario (Las de identificación son fijas en la exportación)
+interface MetricColumnOption {
   key: string;
   label: string;
-  category: 'identificacion' | 'genero' | 'segmentos' | 'servicios' | 'total';
+  category: 'genero' | 'segmentos' | 'servicios' | 'total';
   defaultSelected: boolean;
 }
 
-const COLUMN_OPTIONS: ColumnOption[] = [
-  // Identificación (Obligatorias / Recomendadas)
-  { key: 'regional', label: 'Regional', category: 'identificacion', defaultSelected: true },
-  { key: 'numero_infoplaza', label: 'N° Infoplaza', category: 'identificacion', defaultSelected: true },
-  { key: 'nombre_infoplaza', label: 'Infoplaza', category: 'identificacion', defaultSelected: true },
-  { key: 'periodo_label', label: 'Año - Mes', category: 'identificacion', defaultSelected: true },
-  { key: 'provincia', label: 'Provincia', category: 'identificacion', defaultSelected: true },
-  { key: 'distrito', label: 'Distrito', category: 'identificacion', defaultSelected: true },
-  { key: 'corregimiento', label: 'Corregimiento', category: 'identificacion', defaultSelected: true },
-
+const METRIC_COLUMN_OPTIONS: MetricColumnOption[] = [
   // Género
   { key: 'masculino', label: 'Masculino', category: 'genero', defaultSelected: true },
   { key: 'femenino', label: 'Femenino', category: 'genero', defaultSelected: true },
@@ -74,7 +63,7 @@ const COLUMN_OPTIONS: ColumnOption[] = [
   { key: 'reunion', label: 'Reuniones', category: 'servicios', defaultSelected: true },
   { key: 'otros', label: 'Otros Servicios', category: 'servicios', defaultSelected: true },
 
-  // Métrica Total (Suma de atenciones reales del periodo, sin duplicidad)
+  // Métrica Total de Visitas Reales (sin duplicidad)
   { key: 'total_visitas', label: 'Total Visitas Reales', category: 'total', defaultSelected: true },
 ];
 
@@ -102,13 +91,11 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
 
   // 2. Estado de Filtro de Regionales
   const listaRegionales = useMemo(() => {
-    const regs = Array.from(new Set(allInfoplazas.map(ip => ip.regional).filter(Boolean))).sort();
-    return regs;
+    return Array.from(new Set(allInfoplazas.map(ip => ip.regional).filter(Boolean))).sort();
   }, [allInfoplazas]);
 
   const [selectedRegionales, setSelectedRegionales] = useState<string[]>(['ALL']);
 
-  // Toggle Regionales
   const toggleRegional = (reg: string) => {
     if (reg === 'ALL') {
       setSelectedRegionales(['ALL']);
@@ -129,28 +116,28 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     }
   };
 
-  // 3. Estado de Columnas Seleccionadas
-  const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>(() => {
+  // 3. Estado de Métricas Seleccionadas (Las columnas de ubicación NO son seleccionables)
+  const [selectedMetrics, setSelectedMetrics] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
-    COLUMN_OPTIONS.forEach(col => {
+    METRIC_COLUMN_OPTIONS.forEach(col => {
       initial[col.key] = col.defaultSelected;
     });
     return initial;
   });
 
-  const toggleColumn = (key: string) => {
-    setSelectedColumns(prev => ({
+  const toggleMetric = (key: string) => {
+    setSelectedMetrics(prev => ({
       ...prev,
       [key]: !prev[key]
     }));
   };
 
-  const selectAllColumns = (select: boolean) => {
+  const selectAllMetrics = (select: boolean) => {
     const next: Record<string, boolean> = {};
-    COLUMN_OPTIONS.forEach(col => {
+    METRIC_COLUMN_OPTIONS.forEach(col => {
       next[col.key] = select;
     });
-    setSelectedColumns(next);
+    setSelectedMetrics(next);
   };
 
   // 4. Resultado del Dataset Generado
@@ -162,7 +149,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
-  // Carga inicial automática al montar el componente
+  // Carga inicial al montar el componente
   useEffect(() => {
     fetchReport();
   }, []);
@@ -188,12 +175,12 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     });
   };
 
-  // Columnas activas ordenadas según COLUMN_OPTIONS
-  const activeColumns = useMemo(() => {
-    return COLUMN_OPTIONS.filter(col => selectedColumns[col.key]);
-  }, [selectedColumns]);
+  // Métricas seleccionadas activas
+  const activeMetrics = useMemo(() => {
+    return METRIC_COLUMN_OPTIONS.filter(col => selectedMetrics[col.key]);
+  }, [selectedMetrics]);
 
-  // Filtrar filas por query de búsqueda rápida
+  // Filtrar filas por búsqueda rápida
   const filteredRows = useMemo(() => {
     if (!searchQuery) return reportRows;
     const q = searchQuery.toLowerCase().trim();
@@ -215,24 +202,53 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     return filteredRows.slice(start, start + pageSize);
   }, [filteredRows, currentPage]);
 
-  // Exportar a CSV
+  // Exportar a CSV (Incluye SIEMPRE todas las columnas obligatorias de identificación + métricas seleccionadas)
   const handleExportCSV = () => {
-    if (reportRows.length === 0 || activeColumns.length === 0) return;
+    if (filteredRows.length === 0) return;
 
-    const headers = activeColumns.map(col => `"${col.label.replace(/"/g, '""')}"`);
+    // 1. Cabeceras Obligatorias Fijas de Identificación (Año y Mes en columnas separadas)
+    const fixedHeaders = [
+      'Regional',
+      'Número Infoplaza',
+      'Infoplaza',
+      'Año',
+      'Mes',
+      'Provincia',
+      'Distrito',
+      'Corregimiento'
+    ];
+
+    // 2. Cabeceras de métricas seleccionadas
+    const metricHeaders = activeMetrics.map(m => m.label);
+
+    const allHeaders = [...fixedHeaders, ...metricHeaders].map(h => `"${h.replace(/"/g, '""')}"`);
+
+    // 3. Filas de Datos
     const rows = filteredRows.map(row => {
-      return activeColumns.map(col => {
-        const val = row[col.key];
-        if (typeof val === 'number') return val;
-        return `"${String(val ?? '').replace(/"/g, '""')}"`;
-      }).join(',');
+      const fixedVals = [
+        `"${String(row.regional ?? '').replace(/"/g, '""')}"`,
+        row.numero_infoplaza,
+        `"${String(row.nombre_infoplaza ?? '').replace(/"/g, '""')}"`,
+        row.anio,
+        `"${String(row.mes ?? '').replace(/"/g, '""')}"`,
+        `"${String(row.provincia ?? '').replace(/"/g, '""')}"`,
+        `"${String(row.distrito ?? '').replace(/"/g, '""')}"`,
+        `"${String(row.corregimiento ?? '').replace(/"/g, '""')}"`
+      ];
+
+      const metricVals = activeMetrics.map(m => {
+        const val = row[m.key];
+        return typeof val === 'number' ? val : 0;
+      });
+
+      return [...fixedVals, ...metricVals].join(',');
     });
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [allHeaders.join(','), ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Reporte_Personalizado_Infoplazas_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `Reporte_Consolidado_Infoplazas_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -241,19 +257,19 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
   return (
     <div className="space-y-6">
       {/* CARD DE CONFIGURACIÓN Y FILTROS AD-HOC */}
-      <Card className="bg-[var(--card-bg)] border-[var(--card-border)]">
+      <Card className="animate-fade-in">
         <CardHeader className="border-b border-[var(--card-border)] pb-4">
-          <CardTitle className="text-lg font-bold text-[var(--foreground)] flex items-center justify-between">
+          <CardTitle className="text-base font-bold text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <span className="flex items-center gap-2">
-              <SlidersHorizontal className="text-blue-500" size={22} />
-              Configuración de Reporte Personalizado
+              <SlidersHorizontal className="text-blue-500" size={20} />
+              Configuración del Reporte Personalizado
             </span>
-            <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 font-mono">
-              Salida: 1 Fila por Mes e Infoplaza
+            <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono font-medium">
+              1 Fila por Mes e Infoplaza
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="p-4 sm:p-6 space-y-6">
           
           {/* 1. SELECCIÓN DE PERÍODO TEMPORAL */}
           <div className="space-y-3">
@@ -275,7 +291,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                   className={`px-3 py-2.5 rounded-xl text-xs font-medium border transition-all ${
                     periodoTipo === item.id 
                       ? 'bg-blue-600/20 text-blue-400 border-blue-500/40 shadow-sm font-bold'
-                      : 'bg-[var(--background)] text-[var(--muted)] border-[var(--card-border)] hover:bg-white/5'
+                      : 'bg-white/5 text-[var(--muted)] border-[var(--card-border)] hover:bg-white/10 hover:text-slate-200'
                   }`}
                 >
                   {item.label}
@@ -285,54 +301,52 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
 
             {/* Selector de Rango Personalizado */}
             {periodoTipo === 'personalizado' && (
-              <div className="p-4 rounded-xl bg-[var(--background)] border border-[var(--card-border)] grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                {/* Desde */}
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)] grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                 <div>
-                  <span className="text-xs text-[var(--muted)] font-medium block mb-1.5">Desde:</span>
+                  <span className="text-xs text-[var(--muted)] font-medium block mb-1.5">Desde (Año / Mes):</span>
                   <div className="grid grid-cols-2 gap-2">
                     <select
                       value={desdeAnio}
                       onChange={e => setDesdeAnio(Number(e.target.value))}
-                      className="bg-[var(--card-bg)] border border-[var(--card-border)] text-xs text-[var(--foreground)] rounded-lg p-2 focus:outline-none focus:border-blue-500"
+                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
                     >
                       {listaAnios.map(a => (
-                        <option key={a} value={a}>{a}</option>
+                        <option key={a} value={a} className="bg-slate-900">{a}</option>
                       ))}
                     </select>
 
                     <select
                       value={desdeMesNum}
                       onChange={e => setDesdeMesNum(Number(e.target.value))}
-                      className="bg-[var(--card-bg)] border border-[var(--card-border)] text-xs text-[var(--foreground)] rounded-lg p-2 focus:outline-none focus:border-blue-500"
+                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
                     >
                       {MESES_NOMBRES.map((m, idx) => (
-                        <option key={m} value={idx + 1}>{m}</option>
+                        <option key={m} value={idx + 1} className="bg-slate-900">{m}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                {/* Hasta */}
                 <div>
-                  <span className="text-xs text-[var(--muted)] font-medium block mb-1.5">Hasta:</span>
+                  <span className="text-xs text-[var(--muted)] font-medium block mb-1.5">Hasta (Año / Mes):</span>
                   <div className="grid grid-cols-2 gap-2">
                     <select
                       value={hastaAnio}
                       onChange={e => setHastaAnio(Number(e.target.value))}
-                      className="bg-[var(--card-bg)] border border-[var(--card-border)] text-xs text-[var(--foreground)] rounded-lg p-2 focus:outline-none focus:border-blue-500"
+                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
                     >
                       {listaAnios.map(a => (
-                        <option key={a} value={a}>{a}</option>
+                        <option key={a} value={a} className="bg-slate-900">{a}</option>
                       ))}
                     </select>
 
                     <select
                       value={hastaMesNum}
                       onChange={e => setHastaMesNum(Number(e.target.value))}
-                      className="bg-[var(--card-bg)] border border-[var(--card-border)] text-xs text-[var(--foreground)] rounded-lg p-2 focus:outline-none focus:border-blue-500"
+                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
                     >
                       {MESES_NOMBRES.map((m, idx) => (
-                        <option key={m} value={idx + 1}>{m}</option>
+                        <option key={m} value={idx + 1} className="bg-slate-900">{m}</option>
                       ))}
                     </select>
                   </div>
@@ -353,7 +367,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                   selectedRegionales.includes('ALL')
                     ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/40 font-bold'
-                    : 'bg-[var(--background)] text-[var(--muted)] border-[var(--card-border)] hover:bg-white/5'
+                    : 'bg-white/5 text-[var(--muted)] border-[var(--card-border)] hover:bg-white/10'
                 }`}
               >
                 Todas las Regionales
@@ -368,7 +382,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                       isSelected
                         ? 'bg-blue-600/15 text-blue-400 border-blue-500/30 font-semibold'
-                        : 'bg-[var(--background)] text-[var(--muted)] border-[var(--card-border)] hover:bg-white/5'
+                        : 'bg-white/5 text-[var(--muted)] border-[var(--card-border)] hover:bg-white/10'
                     }`}
                   >
                     {reg}
@@ -378,23 +392,32 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
             </div>
           </div>
 
-          {/* 3. COLUMN PICKER (SELECTOR DE COLUMNAS) */}
+          {/* 3. AVISO INFORMATIVO DE COLUMNAS OBLIGATORIAS EN LA EXPORTACIÓN */}
+          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3 text-xs text-blue-300">
+            <Info size={16} className="text-blue-400 mt-0.5 shrink-0" />
+            <div>
+              <strong className="text-white block font-semibold mb-0.5">Columnas de Identificación Obligatorias:</strong>
+              Las columnas <span className="text-white font-mono font-medium">Regional, N° Infoplaza, Infoplaza, Año, Mes, Provincia, Distrito y Corregimiento</span> son obligatorias y siempre formarán parte del archivo exportado. En la vista previa web se muestran las principales para mantener una visualización limpia y adaptable a todas las pantallas.
+            </div>
+          </div>
+
+          {/* 4. MARCAR DÁTOS / MÉTRICAS DESEADAS */}
           <div className="space-y-3 pt-2 border-t border-[var(--card-border)]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-                <Layers size={14} className="text-emerald-400" /> 3. Selección de Columnas y Métricas
+                <Layers size={14} className="text-emerald-400" /> 3. Marcar Datos y Métricas a Incluir
               </label>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => selectAllColumns(true)}
+                  onClick={() => selectAllMetrics(true)}
                   className="text-xs text-blue-400 hover:underline"
                 >
                   Marcar todas
                 </button>
                 <span className="text-[var(--muted)]">•</span>
                 <button
-                  onClick={() => selectAllColumns(false)}
+                  onClick={() => selectAllMetrics(false)}
                   className="text-xs text-[var(--muted)] hover:underline"
                 >
                   Desmarcar todas
@@ -402,37 +425,19 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
               </div>
             </div>
 
-            {/* Categorías de Columnas */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl bg-[var(--background)] border border-[var(--card-border)]">
-              {/* Identificación */}
+            {/* Categorías de Métricas Seleccionables */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)]">
+              {/* Género y Segmentos */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-slate-300 block pb-1 border-b border-[var(--card-border)]">
-                  Ubicación e ID
+                  Demografía y Segmentos
                 </span>
-                {COLUMN_OPTIONS.filter(c => c.category === 'identificacion').map(col => (
-                  <label key={col.key} className="flex items-center gap-2 text-xs text-[var(--foreground)] cursor-pointer hover:text-white">
+                {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'genero' || c.category === 'segmentos').map(col => (
+                  <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
                     <input
                       type="checkbox"
-                      checked={!!selectedColumns[col.key]}
-                      onChange={() => toggleColumn(col.key)}
-                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0"
-                    />
-                    {col.label}
-                  </label>
-                ))}
-              </div>
-
-              {/* Demografía / Género */}
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300 block pb-1 border-b border-[var(--card-border)]">
-                  Género y Segmentos
-                </span>
-                {COLUMN_OPTIONS.filter(c => c.category === 'genero' || c.category === 'segmentos').map(col => (
-                  <label key={col.key} className="flex items-center gap-2 text-xs text-[var(--foreground)] cursor-pointer hover:text-white">
-                    <input
-                      type="checkbox"
-                      checked={!!selectedColumns[col.key]}
-                      onChange={() => toggleColumn(col.key)}
+                      checked={!!selectedMetrics[col.key]}
+                      onChange={() => toggleMetric(col.key)}
                       className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0"
                     />
                     {col.label}
@@ -443,14 +448,14 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
               {/* Servicios */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-slate-300 block pb-1 border-b border-[var(--card-border)]">
-                  Uso de Servicios
+                  Servicios Solicitados
                 </span>
-                {COLUMN_OPTIONS.filter(c => c.category === 'servicios').map(col => (
-                  <label key={col.key} className="flex items-center gap-2 text-xs text-[var(--foreground)] cursor-pointer hover:text-white">
+                {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'servicios').map(col => (
+                  <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
                     <input
                       type="checkbox"
-                      checked={!!selectedColumns[col.key]}
-                      onChange={() => toggleColumn(col.key)}
+                      checked={!!selectedMetrics[col.key]}
+                      onChange={() => toggleMetric(col.key)}
                       className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0"
                     />
                     {col.label}
@@ -458,43 +463,43 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                 ))}
               </div>
 
-              {/* Métrica Total */}
+              {/* Total Visitas Reales */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-emerald-400 block pb-1 border-b border-[var(--card-border)]">
-                  Total de Atenciones
+                  Métrica Total Consolidada
                 </span>
-                {COLUMN_OPTIONS.filter(c => c.category === 'total').map(col => (
-                  <label key={col.key} className="flex items-center gap-2 text-xs text-white font-semibold cursor-pointer">
+                {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'total').map(col => (
+                  <label key={col.key} className="flex items-center gap-2 text-xs text-white font-semibold cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      checked={!!selectedColumns[col.key]}
-                      onChange={() => toggleColumn(col.key)}
+                      checked={!!selectedMetrics[col.key]}
+                      onChange={() => toggleMetric(col.key)}
                       className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0"
                     />
                     {col.label}
                   </label>
                 ))}
-                <p className="text-[10px] text-[var(--muted)] leading-tight mt-1">
-                  * Suma exacta de visitas/atenciones únicas del período sin duplicar géneros o servicios.
+                <p className="text-[11px] text-[var(--muted)] leading-relaxed mt-2 bg-white/5 p-2 rounded-lg border border-[var(--card-border)]">
+                  * Total de atenciones/visitas únicas del período en esa Infoplaza (suma directa sin triplicar dimensiones).
                 </p>
               </div>
             </div>
           </div>
 
-          {/* BOTÓN DE GENERACIÓN */}
+          {/* BOTÓN DE GENERAR DATASET */}
           <div className="flex justify-end pt-2">
             <button
               onClick={fetchReport}
               disabled={isPending}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
             >
               {isPending ? (
                 <>
-                  <RefreshCw className="animate-spin" size={18} /> Generando Reporte...
+                  <RefreshCw className="animate-spin" size={16} /> Generando Reporte...
                 </>
               ) : (
                 <>
-                  <Filter size={18} /> Aplicar Filtros y Generar Dataset
+                  <Filter size={16} /> Aplicar Filtros y Generar Dataset
                 </>
               )}
             </button>
@@ -503,117 +508,153 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
         </CardContent>
       </Card>
 
-      {/* RESULTADO: LIVE PREVIEW & EXPORTADOR */}
+      {/* VISTA TABULAR DEL REPORTE (IDÉNTICA EN FORMATO A LAS DEMÁS TABLAS DE LA APP) */}
       {hasSearched && (
-        <Card className="bg-[var(--card-bg)] border-[var(--card-border)]">
-          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-[var(--card-border)]">
+        <Card className="animate-fade-in">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[var(--card-border)]">
             <div>
-              <CardTitle className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
+              <CardTitle className="text-base font-bold text-slate-200 flex items-center gap-2">
                 <Database className="text-blue-500" size={18} />
                 Resultado del Reporte ({filteredRows.length.toLocaleString()} registros)
               </CardTitle>
-              <p className="text-xs text-[var(--muted)] mt-0.5">
-                Mostrando {paginatedRows.length} filas por página. Infoplazas cerradas excluidas automáticamente.
+              <p className="text-xs text-[var(--muted)] mt-1">
+                Mostrando {paginatedRows.length} registros por página. Columnas adicionales de ubicación fijas incluidas en la exportación.
               </p>
             </div>
 
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              {/* Buscador Rápido en Tabla */}
-              <div className="relative w-full md:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={14} />
+            {/* Acciones de la tabla */}
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              {/* Buscador de resultados */}
+              <div className="relative flex-1 sm:flex-none sm:w-64">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted)]" />
                 <input
                   type="text"
-                  placeholder="Filtrar resultado..."
+                  placeholder="Buscar en el reporte..."
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[var(--foreground)] focus:outline-none focus:border-blue-500"
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-9 pr-4 py-2 bg-white/5 border border-[var(--card-border)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-[var(--muted)]/60"
                 />
               </div>
 
-              {/* Botón Descarga CSV */}
+              {/* Botón Exportar */}
               <button
                 onClick={handleExportCSV}
-                disabled={reportRows.length === 0 || activeColumns.length === 0}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-medium text-xs hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20 disabled:opacity-50 whitespace-nowrap"
+                disabled={filteredRows.length === 0}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-lg shadow-emerald-600/20 shrink-0"
+                title="Exportar reporte completo con todas las columnas obligatorias a CSV"
               >
-                <Download size={14} /> Exportar a CSV
+                <Download size={16} />
+                <span className="hidden sm:inline">Exportar CSV</span>
               </button>
             </div>
           </CardHeader>
 
           <CardContent className="p-0 overflow-x-auto">
-            {reportRows.length === 0 ? (
-              <div className="p-12 text-center text-xs text-[var(--muted)]">
-                No se encontraron registros con los criterios seleccionados.
-              </div>
-            ) : (
-              <table className="w-full text-left text-xs text-[var(--foreground)] border-collapse">
-                <thead className="bg-white/5 text-[var(--muted)] uppercase tracking-wider border-b border-[var(--card-border)] font-mono">
-                  <tr>
-                    {activeColumns.map(col => (
+            <div className="w-full min-w-full">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[var(--card-border)] bg-white/[0.01]">
+                    {/* COLUMNAS PRINCIPALES DE UBICACIÓN & TIEMPO (IDÉNTICO FORMATO Y RESPONSIVE) */}
+                    <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">N°</th>
+                    <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Infoplaza</th>
+                    <th className="hidden sm:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Regional</th>
+                    <th className="hidden md:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Provincia</th>
+                    <th className="hidden sm:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Año</th>
+                    <th className="hidden sm:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Mes</th>
+
+                    {/* COLUMNAS DE MÉTRICAS SELECCIONADAS */}
+                    {activeMetrics.map(col => (
                       <th 
                         key={col.key} 
-                        className={`p-3 whitespace-nowrap ${
-                          col.category !== 'identificacion' ? 'text-right' : ''
-                        } ${col.key === 'total_visitas' ? 'text-emerald-400 font-bold bg-emerald-500/10' : ''}`}
+                        className={`px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right ${
+                          col.key === 'total_visitas' ? 'text-emerald-400 bg-emerald-500/10' : 'text-[var(--muted)]'
+                        }`}
                       >
                         {col.label}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--card-border)] font-mono">
-                  {paginatedRows.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-white/5 transition-colors">
-                      {activeColumns.map(col => {
-                        const val = row[col.key];
-                        const isNumeric = typeof val === 'number';
-                        const isTotal = col.key === 'total_visitas';
-
-                        return (
-                          <td 
-                            key={col.key} 
-                            className={`p-3 whitespace-nowrap ${
-                              isNumeric ? 'text-right' : ''
-                            } ${isTotal ? 'font-bold text-emerald-400 bg-emerald-500/5' : ''}`}
-                          >
-                            {isNumeric ? val.toLocaleString() : (val ?? '-')}
-                          </td>
-                        );
-                      })}
+                <tbody className="divide-y divide-[var(--card-border)]">
+                  {paginatedRows.length === 0 ? (
+                    <tr>
+                      <td 
+                        colSpan={6 + activeMetrics.length} 
+                        className="px-6 py-12 text-center text-sm text-[var(--muted)]"
+                      >
+                        No se encontraron registros para los criterios aplicados.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    paginatedRows.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
+                        {/* DATOS DE UBICACIÓN & TIEMPO (Año y Mes separados) */}
+                        <td className="px-3 sm:px-6 py-3.5 text-sm font-bold text-slate-300">#{row.numero_infoplaza}</td>
+                        <td className="px-3 sm:px-6 py-3.5 text-sm font-semibold text-slate-100 max-w-[140px] sm:max-w-none truncate sm:whitespace-normal" title={row.nombre_infoplaza}>
+                          {row.nombre_infoplaza}
+                        </td>
+                        <td className="hidden sm:table-cell px-6 py-3.5 text-sm text-[var(--muted)]">{row.regional}</td>
+                        <td className="hidden md:table-cell px-6 py-3.5 text-sm text-[var(--muted)]">{row.provincia}</td>
+                        <td className="hidden sm:table-cell px-6 py-3.5 text-sm font-mono text-slate-300">{row.anio}</td>
+                        <td className="hidden sm:table-cell px-6 py-3.5 text-sm font-sans text-slate-300">{row.mes}</td>
+
+                        {/* DATOS DE MÉTRICAS SELECCIONADAS */}
+                        {activeMetrics.map(col => {
+                          const val = row[col.key];
+                          const isNumeric = typeof val === 'number';
+                          const isTotal = col.key === 'total_visitas';
+
+                          return (
+                            <td 
+                              key={col.key} 
+                              className={`px-3 sm:px-6 py-3.5 text-sm font-mono text-right ${
+                                isTotal 
+                                  ? 'font-extrabold text-emerald-400 bg-emerald-500/5' 
+                                  : 'text-slate-200'
+                              }`}
+                            >
+                              {isNumeric ? val.toLocaleString() : (val ?? 0)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* PAGINACIÓN IDÉNTICA A OTRAS TABLAS DEL DASHBOARD */}
+            {totalPages > 1 && (
+              <div className="px-6 py-4 border-t border-[var(--card-border)] flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[var(--muted)]">
+                <div>
+                  Mostrando página <span className="font-bold text-slate-200">{currentPage}</span> de{' '}
+                  <span className="font-bold text-slate-200">{totalPages}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 border border-[var(--card-border)] rounded-xl text-xs font-semibold transition-all disabled:opacity-30"
+                  >
+                    <ChevronLeft size={14} /> Anterior
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 border border-[var(--card-border)] rounded-xl text-xs font-semibold transition-all disabled:opacity-30"
+                  >
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
             )}
           </CardContent>
-
-          {/* Paginador */}
-          {totalPages > 1 && (
-            <div className="p-4 border-t border-[var(--card-border)] flex items-center justify-between text-xs text-[var(--muted)]">
-              <div>
-                Página <span className="font-bold text-white">{currentPage}</span> de <span className="font-bold text-white">{totalPages}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-1.5 rounded-lg border border-[var(--card-border)] hover:bg-white/5 disabled:opacity-30"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-1.5 rounded-lg border border-[var(--card-border)] hover:bg-white/5 disabled:opacity-30"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
         </Card>
       )}
 
