@@ -39,37 +39,37 @@ export default function ReportesTabSection({
   return (
     <div className="space-y-6">
       {/* BARRA DE NAVEGACIÓN PRINCIPAL DE SUB-PESTAÑAS */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-2 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)]">
-        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 p-2 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] w-full max-w-full overflow-hidden">
+        <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
           {/* Sub-tab 1: Reportes Personalizados Ad-hoc */}
           <button
             onClick={() => setSubTab('personalizado')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               subTab === 'personalizado'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
             }`}
           >
-            <SlidersHorizontal size={16} />
+            <SlidersHorizontal size={15} />
             Reporte Personalizado (Ad-Hoc)
           </button>
 
           {/* Sub-tab 2: Ficha / Diagnóstico Individual por Infoplaza */}
           <button
             onClick={() => setSubTab('individual')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               subTab === 'individual'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
             }`}
           >
-            <BarChart2 size={16} />
+            <BarChart2 size={15} />
             Ficha por Infoplaza
           </button>
         </div>
 
-        {/* Indicador contextual */}
-        <div className="px-3 py-1 rounded-lg bg-white/5 border border-[var(--card-border)] text-[11px] text-[var(--muted)] hidden md:block">
+        {/* Indicador contextual ajustado */}
+        <div className="px-3 py-1 rounded-lg bg-white/5 border border-[var(--card-border)] text-[11px] text-[var(--muted)] hidden xl:block truncate max-w-sm shrink">
           {subTab === 'personalizado' 
             ? 'Generador de matrices ad-hoc, multi-regional y exportación dinámicos'
             : 'Diagnóstico ejecutivo, perfil social e historial individual por sucursal'

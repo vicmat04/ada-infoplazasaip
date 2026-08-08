@@ -255,9 +255,9 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
       {/* CARD DE CONFIGURACIÓN Y FILTROS AD-HOC */}
-      <Card className="animate-fade-in">
+      <Card className="animate-fade-in w-full max-w-full overflow-hidden">
         <CardHeader className="border-b border-[var(--card-border)] pb-4">
           <CardTitle className="text-base font-bold text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <span className="flex items-center gap-2">
@@ -277,7 +277,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
               <Calendar size={14} className="text-blue-400" /> 1. Período de Tiempo
             </label>
             
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+            <div className="flex flex-wrap gap-2 w-full">
               {[
                 { id: 'mes_actual', label: 'Mes Actual' },
                 { id: 'mes_anterior', label: 'Mes Anterior' },
@@ -288,7 +288,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                 <button
                   key={item.id}
                   onClick={() => setPeriodoTipo(item.id as any)}
-                  className={`px-3 py-2.5 rounded-xl text-xs font-medium border transition-all ${
+                  className={`flex-1 sm:flex-initial min-w-[110px] px-3.5 py-2.5 rounded-xl text-xs font-medium border transition-all text-center whitespace-nowrap ${
                     periodoTipo === item.id 
                       ? 'bg-blue-600/20 text-blue-400 border-blue-500/40 shadow-sm font-bold'
                       : 'bg-white/5 text-[var(--muted)] border-[var(--card-border)] hover:bg-white/10 hover:text-slate-200'
