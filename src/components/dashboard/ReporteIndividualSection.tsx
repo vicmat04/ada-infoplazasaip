@@ -35,6 +35,7 @@ import {
   Printer
 } from 'lucide-react';
 import { getDashboardData, getSyncPageData, getInfoplazaMensualReport } from '../../app/actions';
+import ExecutiveReportTemplate from './ExecutiveReportTemplate';
 
 interface InfoplazaItem {
   numero: number;
@@ -316,7 +317,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
       const dataUrl = await toPng(element, {
         quality: 1,
         pixelRatio: 2,
-        backgroundColor: '#0f172a',
+        backgroundColor: '#ffffff',
         filter: (node: HTMLElement) => {
           if (node.hasAttribute && node.hasAttribute('data-html2canvas-ignore')) {
             return false;
@@ -458,7 +459,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
 
       {/* 3. VISTA PRINCIPAL DEL REPORTE INDIVIDUAL */}
       {selectedIp && !isPending && reportData && (
-        <div id="reporte-pdf-content" className="space-y-6">
+        <div className="space-y-6">
           {/* Header de la Infoplaza Seleccionada */}
           <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-900/30 via-slate-900/50 to-slate-900 border border-blue-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
@@ -651,6 +652,23 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
               </table>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* 4. TEMPLATE OCULTO PARA EXPORTACIÓN A PDF */}
+      {selectedIp && !isPending && reportData && profiling && (
+        <div className="absolute left-[-9999px] top-[-9999px] overflow-hidden">
+          <ExecutiveReportTemplate 
+            selectedIp={selectedIp}
+            filters={filters}
+            reportData={reportData}
+            syncState={syncState}
+            profiling={profiling}
+            resumenNarrativo={resumenNarrativo}
+            servicesPieData={servicesPieData}
+            visitorBarData={visitorBarData}
+            monthlyConsolidated={monthlyConsolidated}
+          />
         </div>
       )}
     </div>
