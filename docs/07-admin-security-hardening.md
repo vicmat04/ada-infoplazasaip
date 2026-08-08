@@ -142,6 +142,18 @@ Se considera endurecida esta fase cuando:
 4. toda accion administrativa relevante deja traza en `admin_audit_log`
 5. ninguna operacion sensible depende solo del frontend
 
+## Estado aplicado el 2026-07-28
+
+Se aplicó la migración [20260728_fix_rls_infoplaza_sync_lotes_carga.sql](/c:/Users/vdominguez/Downloads/historicoVisitasAIP/docs/migrations/20260728_fix_rls_infoplaza_sync_lotes_carga.sql) como respuesta al alerta de seguridad `rls_disabled_in_public` recibido de Supabase:
+
+- `public.infoplaza_sync_status` habilitó RLS.
+  - Política `sync_status_global_read`: `admin`, `directivo`, `invitado` pueden leer todos los registros.
+  - Política `sync_status_regional_read`: `facilitador`, `enlace`, `supervisor` solo leen registros de su regional.
+- `public.lotes_carga` habilitó RLS.
+  - Política `lotes_carga_admin_read`: solo `admin` puede leer. Igual que `historial_ejecuciones`.
+- El `service_role` (usado por backend ADA) no se ve afectado — bypass RLS por diseño de Supabase.
+- El frontend no usa ninguna de estas dos tablas — sin impacto en la app.
+
 ## Estado aplicado el 2026-06-29
 
 Se aplico la migracion [20260629123500_harden_profiles_rls.sql](/C:/Users/vdominguez/InfoplazasAnalytics/supabase/migrations/20260629123500_harden_profiles_rls.sql) con estos efectos:
