@@ -256,7 +256,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
   };
 
   return (
-    <div className="space-y-6 w-full max-w-full box-border overflow-hidden">
+    <div className="grid grid-cols-1 min-w-0 gap-6 w-full max-w-full box-border">
       {/* CARD DE CONFIGURACIÓN Y FILTROS AD-HOC */}
       <Card className="animate-fade-in w-full max-w-full box-border overflow-hidden">
         <CardHeader className="border-b border-[var(--card-border)] pb-4">

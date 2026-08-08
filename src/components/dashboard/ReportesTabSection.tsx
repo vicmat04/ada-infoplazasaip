@@ -37,7 +37,7 @@ export default function ReportesTabSection({
   const [subTab, setSubTab] = useState<'individual' | 'personalizado'>('personalizado');
 
   return (
-    <div className="space-y-6 w-full max-w-full box-border overflow-hidden">
+    <div className="grid grid-cols-1 min-w-0 gap-6 w-full max-w-full box-border">
       {/* BARRA DE NAVEGACIÓN PRINCIPAL DE SUB-PESTAÑAS */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 p-2 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] w-full max-w-full box-border overflow-hidden">
         <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
