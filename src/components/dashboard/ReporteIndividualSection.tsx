@@ -666,7 +666,6 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
             filters={filters}
             reportData={reportData}
             syncState={syncState}
-            profiling={profiling}
             resumenNarrativo={resumenNarrativo}
             servicesPieData={servicesPieData}
             visitorBarData={visitorBarData}

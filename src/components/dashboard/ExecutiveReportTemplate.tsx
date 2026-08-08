@@ -25,7 +25,6 @@ interface ExecutiveReportTemplateProps {
   filters: any;
   reportData: any;
   syncState: any;
-  profiling: any;
   resumenNarrativo: string;
   servicesPieData: any[];
   visitorBarData: any[];
@@ -37,7 +36,6 @@ export default function ExecutiveReportTemplate({
   filters,
   reportData,
   syncState,
-  profiling,
   resumenNarrativo,
   servicesPieData,
   visitorBarData,
@@ -49,6 +47,18 @@ export default function ExecutiveReportTemplate({
     day: 'numeric'
   });
 
+  // KPIs
+  const totalAtenciones = reportData?.serviceKpis?.totalAtenciones?.toLocaleString() || '0';
+  const topServicio = reportData?.serviceKpis?.servicioLider || 'N/A';
+  
+  const topSegment = reportData?.visitorSegments?.reduce((max: any, current: any) => {
+    return (current.value > (max?.value || 0)) ? current : max;
+  }, null);
+  const topUsuario = topSegment?.name || 'N/A';
+
+  const syncStatus = syncState?.sync_estado || 'N/A';
+  const syncDays = syncState?.dias_sin_sinc ?? 0;
+  
   return (
     <div id="executive-pdf-content" className="w-[800px] bg-white text-slate-900 p-10 font-sans mx-auto">
       {/* HEADER */}
@@ -69,8 +79,31 @@ export default function ExecutiveReportTemplate({
         </div>
       </div>
 
+      {/* KPIs FRONTALES */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="border border-slate-200 bg-slate-50 rounded-lg p-4 text-center">
+          <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-1">Total Atenciones</h3>
+          <p className="text-xl font-black text-blue-900">{totalAtenciones}</p>
+        </div>
+        <div className="border border-slate-200 bg-slate-50 rounded-lg p-4 text-center">
+          <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-1">Top Servicio</h3>
+          <p className="text-sm font-black text-blue-900 mt-2 leading-tight">{topServicio}</p>
+        </div>
+        <div className="border border-slate-200 bg-slate-50 rounded-lg p-4 text-center">
+          <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-1">Top Usuario</h3>
+          <p className="text-sm font-black text-blue-900 mt-2 leading-tight">{topUsuario}</p>
+        </div>
+        <div className="border border-slate-200 bg-slate-50 rounded-lg p-4 text-center">
+          <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-1">Estado Sync</h3>
+          <p className={`text-sm font-black mt-2 leading-tight ${syncStatus === 'Al día' ? 'text-emerald-700' : 'text-red-600'}`}>
+            {syncStatus}
+          </p>
+          <p className="text-[9px] text-slate-400 mt-1">{syncDays} días sin sincronizar</p>
+        </div>
+      </div>
+
       {/* RESUMEN EJECUTIVO */}
-      <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-6 shadow-sm">
+      <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-8 shadow-sm">
         <h2 className="text-sm font-bold text-blue-900 uppercase tracking-wider mb-2 border-b border-slate-200 pb-2">
           Resumen Ejecutivo
         </h2>
@@ -79,27 +112,11 @@ export default function ExecutiveReportTemplate({
         </p>
       </div>
 
-      {/* KPIs DE PERFILADO */}
-      {profiling && (
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className="border border-emerald-200 bg-emerald-50 rounded-lg p-4">
-            <h3 className="text-xs font-bold text-emerald-800 uppercase mb-1">Foco Comunitario / Educativo</h3>
-            <p className="text-base font-black text-emerald-900">{profiling.focoLabel}</p>
-            <p className="text-xs text-emerald-700 mt-1">{profiling.impactoDominante}</p>
-          </div>
-          <div className="border border-indigo-200 bg-indigo-50 rounded-lg p-4">
-            <h3 className="text-xs font-bold text-indigo-800 uppercase mb-1">Perfil Operativo de Servicios</h3>
-            <p className="text-base font-black text-indigo-900">{profiling.perfilLabel}</p>
-            <p className="text-xs text-indigo-700 mt-1">Basado en volumen de servicios base vs valor agregado</p>
-          </div>
-        </div>
-      )}
-
-      {/* GRÁFICOS */}
-      <div className="grid grid-cols-2 gap-6 mb-8">
+      {/* GRÁFICOS (ANCHO COMPLETO) */}
+      <div className="grid grid-cols-1 gap-6 mb-8">
         <div className="border border-slate-200 rounded-lg p-4 bg-white shadow-sm">
           <h3 className="text-xs font-bold text-slate-800 uppercase mb-4 text-center">Distribución de Servicios</h3>
-          <div className="h-48">
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -107,13 +124,13 @@ export default function ExecutiveReportTemplate({
                   data={servicesPieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={40}
-                  outerRadius={70}
+                  innerRadius={60}
+                  outerRadius={100}
                   paddingAngle={2}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                  style={{ fontSize: '9px', fill: '#334155' }}
+                  labelLine={true}
+                  style={{ fontSize: '10px', fill: '#334155' }}
                 >
                   {servicesPieData.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -126,12 +143,12 @@ export default function ExecutiveReportTemplate({
 
         <div className="border border-slate-200 rounded-lg p-4 bg-white shadow-sm">
           <h3 className="text-xs font-bold text-slate-800 uppercase mb-4 text-center">Perfil de Visitantes</h3>
-          <div className="h-48">
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={visitorBarData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <BarChart data={visitorBarData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={9} interval={0} angle={-30} textAnchor="end" height={40} />
-                <YAxis stroke="#64748b" fontSize={9} />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-15} textAnchor="end" height={40} />
+                <YAxis stroke="#64748b" fontSize={10} />
                 <Bar dataKey="Cantidad" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                   {visitorBarData.map((entry: any, index: number) => (
                     <Cell key={`bar-${index}`} fill={entry.color} />
@@ -143,45 +160,116 @@ export default function ExecutiveReportTemplate({
         </div>
       </div>
 
-      {/* TABLA DE DETALLE */}
-      <div className="mb-4">
-        <h3 className="text-xs font-bold text-slate-800 uppercase mb-2">Desglose Operativo Mensual ({filters.anio})</h3>
-        <table className="w-full text-left text-[10px] border-collapse shadow-sm">
-          <thead>
-            <tr className="bg-slate-100 text-slate-700 uppercase border-y border-slate-300">
-              <th className="py-2 px-2 font-bold">Mes</th>
-              <th className="py-2 px-2 font-bold text-right">Uso PC</th>
-              <th className="py-2 px-2 font-bold text-right">Impresión</th>
-              <th className="py-2 px-2 font-bold text-right">Copias</th>
-              <th className="py-2 px-2 font-bold text-right">Consultas</th>
-              <th className="py-2 px-2 font-bold text-right">Talleres</th>
-              <th className="py-2 px-2 font-bold text-right bg-slate-200">Servicios</th>
-              <th className="py-2 px-2 font-bold text-right">Vis. Masc</th>
-              <th className="py-2 px-2 font-bold text-right">Vis. Fem</th>
-              <th className="py-2 px-2 font-bold text-right bg-blue-100 text-blue-900">Total Vis.</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {monthlyConsolidated.length === 0 ? (
-              <tr><td colSpan={10} className="py-4 text-center text-slate-500">Sin datos registrados.</td></tr>
-            ) : (
-              monthlyConsolidated.map((m) => (
-                <tr key={m.mes_numero} className="hover:bg-slate-50">
-                  <td className="py-1.5 px-2 font-medium">{m.mes}</td>
-                  <td className="py-1.5 px-2 text-right">{m.uso_de_pc?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right">{m.impresion?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right">{m.copia?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right">{m.consulta?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right">{m.taller?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right font-bold bg-slate-50">{m.total_servicios?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right">{m.masculino?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right">{m.femenino?.toLocaleString() || 0}</td>
-                  <td className="py-1.5 px-2 text-right font-bold bg-blue-50 text-blue-800">{m.total_visitantes?.toLocaleString() || 0}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* TABLAS SEPARADAS */}
+      <div className="space-y-8 mb-4">
+        
+        {/* Tabla 1: Género */}
+        <div>
+          <h3 className="text-xs font-bold text-slate-800 uppercase mb-2 border-b-2 border-slate-800 inline-block pb-1">1. Visitas por Mes según Género</h3>
+          <table className="w-full text-left text-[11px] border-collapse shadow-sm">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700 uppercase border-y border-slate-300">
+                <th className="py-2 px-3 font-bold">Mes</th>
+                <th className="py-2 px-3 font-bold text-right text-blue-800">Masculino</th>
+                <th className="py-2 px-3 font-bold text-right text-pink-700">Femenino</th>
+                <th className="py-2 px-3 font-bold text-right bg-blue-100 text-blue-900">Total Género</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {monthlyConsolidated.length === 0 ? (
+                <tr><td colSpan={4} className="py-4 text-center text-slate-500">Sin datos registrados.</td></tr>
+              ) : (
+                monthlyConsolidated.map((m) => (
+                  <tr key={m.mes_numero} className="hover:bg-slate-50">
+                    <td className="py-1.5 px-3 font-medium">{m.mes}</td>
+                    <td className="py-1.5 px-3 text-right">{m.masculino?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-3 text-right">{m.femenino?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-3 text-right font-bold bg-blue-50">{((m.masculino || 0) + (m.femenino || 0)).toLocaleString()}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Tabla 2: Tipo de Usuario */}
+        <div>
+          <h3 className="text-xs font-bold text-slate-800 uppercase mb-2 border-b-2 border-slate-800 inline-block pb-1">2. Visitas por Mes según Tipo de Usuario</h3>
+          <table className="w-full text-left text-[11px] border-collapse shadow-sm">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700 uppercase border-y border-slate-300 text-[9px]">
+                <th className="py-2 px-2 font-bold">Mes</th>
+                <th className="py-2 px-2 font-bold text-right">Primaria</th>
+                <th className="py-2 px-2 font-bold text-right">Secundaria</th>
+                <th className="py-2 px-2 font-bold text-right">Universitario</th>
+                <th className="py-2 px-2 font-bold text-right">Docente</th>
+                <th className="py-2 px-2 font-bold text-right">Tercera Edad</th>
+                <th className="py-2 px-2 font-bold text-right">Púb. General</th>
+                <th className="py-2 px-2 font-bold text-right bg-blue-100 text-blue-900">Total Usuarios</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {monthlyConsolidated.length === 0 ? (
+                <tr><td colSpan={8} className="py-4 text-center text-slate-500">Sin datos registrados.</td></tr>
+              ) : (
+                monthlyConsolidated.map((m) => {
+                  const totalUsr = (m.primaria||0) + (m.secundaria||0) + (m.universitario||0) + (m.docente||0) + (m.tercera_edad||0) + (m.publico_general||0);
+                  return (
+                    <tr key={m.mes_numero} className="hover:bg-slate-50">
+                      <td className="py-1.5 px-2 font-medium">{m.mes}</td>
+                      <td className="py-1.5 px-2 text-right">{m.primaria?.toLocaleString() || 0}</td>
+                      <td className="py-1.5 px-2 text-right">{m.secundaria?.toLocaleString() || 0}</td>
+                      <td className="py-1.5 px-2 text-right">{m.universitario?.toLocaleString() || 0}</td>
+                      <td className="py-1.5 px-2 text-right">{m.docente?.toLocaleString() || 0}</td>
+                      <td className="py-1.5 px-2 text-right">{m.tercera_edad?.toLocaleString() || 0}</td>
+                      <td className="py-1.5 px-2 text-right">{m.publico_general?.toLocaleString() || 0}</td>
+                      <td className="py-1.5 px-2 text-right font-bold bg-blue-50">{totalUsr.toLocaleString()}</td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Tabla 3: Servicios */}
+        <div>
+          <h3 className="text-xs font-bold text-slate-800 uppercase mb-2 border-b-2 border-slate-800 inline-block pb-1">3. Visitas por Mes según Servicios</h3>
+          <table className="w-full text-left text-[11px] border-collapse shadow-sm">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700 uppercase border-y border-slate-300 text-[10px]">
+                <th className="py-2 px-2 font-bold">Mes</th>
+                <th className="py-2 px-2 font-bold text-right">Uso PC</th>
+                <th className="py-2 px-2 font-bold text-right">Impresión</th>
+                <th className="py-2 px-2 font-bold text-right">Copias</th>
+                <th className="py-2 px-2 font-bold text-right">Consultas</th>
+                <th className="py-2 px-2 font-bold text-right">Talleres</th>
+                <th className="py-2 px-2 font-bold text-right">Reunión</th>
+                <th className="py-2 px-2 font-bold text-right">Otros</th>
+                <th className="py-2 px-2 font-bold text-right bg-blue-100 text-blue-900">Total Servicios</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {monthlyConsolidated.length === 0 ? (
+                <tr><td colSpan={9} className="py-4 text-center text-slate-500">Sin datos registrados.</td></tr>
+              ) : (
+                monthlyConsolidated.map((m) => (
+                  <tr key={m.mes_numero} className="hover:bg-slate-50">
+                    <td className="py-1.5 px-2 font-medium">{m.mes}</td>
+                    <td className="py-1.5 px-2 text-right">{m.uso_de_pc?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-2 text-right">{m.impresion?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-2 text-right">{m.copia?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-2 text-right">{m.consulta?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-2 text-right">{m.taller?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-2 text-right">{m.reunion?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-2 text-right">{m.otros?.toLocaleString() || 0}</td>
+                    <td className="py-1.5 px-2 text-right font-bold bg-blue-50">{m.total_servicios?.toLocaleString() || 0}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* FOOTER */}
