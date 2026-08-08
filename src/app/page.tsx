@@ -87,7 +87,7 @@ export default function Page() {
   // Forzar redirección de pestañas restringidas fuera de entorno de desarrollo local
   useEffect(() => {
     const isDev = process.env.NODE_ENV === 'development';
-    if (!isDev && (activeTab === 'reportes' || activeTab === 'administracion')) {
+    if (!isDev && activeTab === 'administracion') {
       setActiveTab('dashboard');
     }
   }, [activeTab]);

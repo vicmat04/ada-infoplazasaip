@@ -39,8 +39,8 @@ export default function Sidebar({
     { id: 'servicios', label: 'Servicios', icon: Activity },
     { id: 'visitantes', label: 'Visitantes', icon: Users },
     { id: 'sincronizacion', label: 'Sincronización', icon: RefreshCw },
+    { id: 'reportes', label: 'Reportes', icon: FileText },
     ...(isDev ? [
-      { id: 'reportes', label: 'Reportes', icon: FileText },
       { id: 'administracion', label: 'Administración', icon: Settings },
     ] : []),
   ];
