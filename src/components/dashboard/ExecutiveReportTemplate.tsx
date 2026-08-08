@@ -62,7 +62,7 @@ export default function ExecutiveReportTemplate({
   return (
     <div id="executive-pdf-content" className="w-[800px] bg-white text-slate-900 p-10 font-sans mx-auto">
       {/* HEADER */}
-      <div className="flex items-center justify-between border-b-2 border-blue-800 pb-6 mb-6">
+      <div id="pdf-section-header" className="flex items-center justify-between border-b-2 border-blue-800 pb-6 mb-6">
         <div className="flex items-center gap-4">
           <img src="/logo.png" alt="Logo Infoplazas" className="h-16 object-contain" />
           <div>
@@ -80,7 +80,7 @@ export default function ExecutiveReportTemplate({
       </div>
 
       {/* KPIs FRONTALES */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div id="pdf-section-kpis" className="grid grid-cols-4 gap-4 mb-6">
         <div className="border border-slate-200 bg-slate-50 rounded-lg p-4 text-center">
           <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-1">Total Atenciones</h3>
           <p className="text-xl font-black text-blue-900">{totalAtenciones}</p>
@@ -103,7 +103,7 @@ export default function ExecutiveReportTemplate({
       </div>
 
       {/* RESUMEN EJECUTIVO */}
-      <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-8 shadow-sm">
+      <div id="pdf-section-resumen" className="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-8 shadow-sm">
         <h2 className="text-sm font-bold text-blue-900 uppercase tracking-wider mb-2 border-b border-slate-200 pb-2">
           Resumen Ejecutivo
         </h2>
@@ -113,7 +113,7 @@ export default function ExecutiveReportTemplate({
       </div>
 
       {/* GRÁFICOS (ANCHO COMPLETO) */}
-      <div className="grid grid-cols-1 gap-6 mb-8">
+      <div id="pdf-section-charts" className="grid grid-cols-1 gap-6 mb-8">
         <div className="border border-slate-200 rounded-lg p-4 bg-white shadow-sm">
           <h3 className="text-xs font-bold text-slate-800 uppercase mb-4 text-center">Distribución de Servicios</h3>
           <div className="h-64">
@@ -164,7 +164,7 @@ export default function ExecutiveReportTemplate({
       <div className="space-y-8 mb-4">
         
         {/* Tabla 1: Género */}
-        <div>
+        <div id="pdf-section-table1">
           <h3 className="text-xs font-bold text-slate-800 uppercase mb-2 border-b-2 border-slate-800 inline-block pb-1">1. Visitas por Mes según Género</h3>
           <table className="w-full text-left text-[11px] border-collapse shadow-sm">
             <thead>
@@ -193,7 +193,7 @@ export default function ExecutiveReportTemplate({
         </div>
 
         {/* Tabla 2: Tipo de Usuario */}
-        <div>
+        <div id="pdf-section-table2" className="mt-8">
           <h3 className="text-xs font-bold text-slate-800 uppercase mb-2 border-b-2 border-slate-800 inline-block pb-1">2. Visitas por Mes según Tipo de Usuario</h3>
           <table className="w-full text-left text-[11px] border-collapse shadow-sm">
             <thead>
@@ -233,7 +233,7 @@ export default function ExecutiveReportTemplate({
         </div>
 
         {/* Tabla 3: Servicios */}
-        <div>
+        <div id="pdf-section-table3" className="mt-8">
           <h3 className="text-xs font-bold text-slate-800 uppercase mb-2 border-b-2 border-slate-800 inline-block pb-1">3. Visitas por Mes según Servicios</h3>
           <table className="w-full text-left text-[11px] border-collapse shadow-sm">
             <thead>
@@ -273,7 +273,7 @@ export default function ExecutiveReportTemplate({
       </div>
 
       {/* FOOTER */}
-      <div className="mt-8 pt-4 border-t border-slate-200 text-center text-[10px] text-slate-400">
+      <div id="pdf-section-footer" className="mt-8 pt-4 border-t border-slate-200 text-center text-[10px] text-slate-400">
         <p>Generado automáticamente por el Sistema de Control Operativo - Infoplazas AIP</p>
         <p>Documento de Uso Ejecutivo e Institucional</p>
       </div>

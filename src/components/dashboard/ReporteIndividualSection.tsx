@@ -311,41 +311,50 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
       const { toPng } = await import('html-to-image');
       const { default: jsPDF } = await import('jspdf');
       
-      const element = document.getElementById('executive-pdf-content');
-      if (!element) {
-        console.error("Elemento 'executive-pdf-content' no encontrado.");
-        return;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const margin = 10;
+      let currentY = margin;
+      const renderWidth = pdfWidth - (margin * 2);
+
+      const sections = [
+        'pdf-section-header',
+        'pdf-section-kpis',
+        'pdf-section-resumen',
+        'pdf-section-charts',
+        'pdf-section-table1',
+        'pdf-section-table2',
+        'pdf-section-table3',
+        'pdf-section-footer'
+      ];
+
+      for (const sectionId of sections) {
+        const element = document.getElementById(sectionId);
+        if (!element) continue;
+
+        const dataUrl = await toPng(element, {
+          quality: 1,
+          pixelRatio: 2,
+          backgroundColor: '#ffffff'
+        });
+
+        const imgProps = pdf.getImageProperties(dataUrl);
+        const imgRatio = imgProps.width / imgProps.height;
+        const renderHeight = renderWidth / imgRatio;
+
+        // Si la sección excede el espacio vertical restante, crear nueva página
+        if (currentY + renderHeight > pdfHeight - margin && currentY > margin) {
+          pdf.addPage();
+          currentY = margin;
+        }
+
+        pdf.addImage(dataUrl, 'PNG', margin, currentY, renderWidth, renderHeight);
+        currentY += renderHeight + 5; // 5mm gap
       }
       
-      const dataUrl = await toPng(element, {
-        quality: 1,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        filter: (node: HTMLElement) => {
-          if (node.hasAttribute && node.hasAttribute('data-html2canvas-ignore')) {
-            return false;
-          }
-          return true;
-        }
-      });
-      
-      const dummyPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pdfWidth = dummyPdf.internal.pageSize.getWidth();
-      
-      const imgProps = dummyPdf.getImageProperties(dataUrl);
-      const imgRatio = imgProps.width / imgProps.height;
-      
-      const renderWidth = pdfWidth - 20; // margen de 10mm
-      const renderHeight = renderWidth / imgRatio;
-      
-      const finalPdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: [pdfWidth, renderHeight + 20]
-      });
-      
-      finalPdf.addImage(dataUrl, 'PNG', 10, 10, renderWidth, renderHeight);
-      finalPdf.save(`Ficha_Diagnostica_Infoplaza_${selectedIp.numero}_${filters.anio}.pdf`);
+      pdf.save(`Ficha_Diagnostica_Infoplaza_${selectedIp.numero}_${filters.anio}.pdf`);
       
     } catch (error) {
       console.error('Error al generar PDF:', error);
