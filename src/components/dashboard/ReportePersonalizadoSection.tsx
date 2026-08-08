@@ -255,9 +255,9 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
   };
 
   return (
-    <div className="space-y-6 w-full max-w-full overflow-hidden">
+    <div className="space-y-6 w-full max-w-full box-border overflow-hidden">
       {/* CARD DE CONFIGURACIÓN Y FILTROS AD-HOC */}
-      <Card className="animate-fade-in w-full max-w-full overflow-hidden">
+      <Card className="animate-fade-in w-full max-w-full box-border overflow-hidden">
         <CardHeader className="border-b border-[var(--card-border)] pb-4">
           <CardTitle className="text-base font-bold text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <span className="flex items-center gap-2">
@@ -269,7 +269,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6 space-y-6">
+        <CardContent className="pt-2 space-y-6 w-full max-w-full box-border">
           
           {/* 1. SELECCIÓN DE PERÍODO TEMPORAL */}
           <div className="space-y-3">
@@ -393,7 +393,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
           </div>
 
           {/* 3. AVISO INFORMATIVO DE COLUMNAS OBLIGATORIAS EN LA EXPORTACIÓN */}
-          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3 text-xs text-blue-300">
+          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3 text-xs text-blue-300 w-full max-w-full box-border">
             <Info size={16} className="text-blue-400 mt-0.5 shrink-0" />
             <div>
               <strong className="text-white block font-semibold mb-0.5">Columnas de Identificación Obligatorias:</strong>
@@ -426,7 +426,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
             </div>
 
             {/* Categorías de Métricas Seleccionables */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)] w-full max-w-full box-border">
               {/* Género y Segmentos */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-slate-300 block pb-1 border-b border-[var(--card-border)]">

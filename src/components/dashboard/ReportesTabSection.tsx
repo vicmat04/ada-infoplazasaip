@@ -37,9 +37,9 @@ export default function ReportesTabSection({
   const [subTab, setSubTab] = useState<'individual' | 'personalizado'>('personalizado');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full box-border overflow-hidden">
       {/* BARRA DE NAVEGACIÓN PRINCIPAL DE SUB-PESTAÑAS */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 p-2 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] w-full max-w-full overflow-hidden">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 p-2 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] w-full max-w-full box-border overflow-hidden">
         <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
           {/* Sub-tab 1: Reportes Personalizados Ad-hoc */}
           <button
