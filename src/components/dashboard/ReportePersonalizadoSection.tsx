@@ -611,32 +611,32 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                   )}
                 </tbody>
               </table>
-
-            {/* PAGINACIÓN */}
-            {totalPages > 1 && (
-              <div className="px-6 py-4 flex items-center justify-between border-t border-[var(--card-border)] bg-white/[0.005]">
-                <span className="text-xs text-[var(--muted)] font-medium">
-                  Mostrando pág. {currentPage} de {totalPages} ({filteredRows.length} registros)
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-white disabled:opacity-40 transition-all"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-white disabled:opacity-40 transition-all"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-            )}
           </CardContent>
+
+          {/* PAGINACIÓN */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 flex items-center justify-between border-t border-[var(--card-border)] bg-white/[0.005]">
+              <span className="text-xs text-[var(--muted)] font-medium">
+                Mostrando pág. {currentPage} de {totalPages} ({filteredRows.length} registros)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-white disabled:opacity-40 transition-all"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-white disabled:opacity-40 transition-all"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
