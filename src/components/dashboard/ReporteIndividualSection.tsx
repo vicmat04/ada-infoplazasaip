@@ -307,26 +307,42 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
     setIsGeneratingPDF(true);
     
     try {
-      // Importación dinámica para evitar errores de SSR en Next.js
-      const html2pdf = (await import('html2pdf.js')).default;
+      const { toPng } = await import('html-to-image');
+      const { default: jsPDF } = await import('jspdf');
+      
       const element = document.getElementById('reporte-pdf-content');
       if (!element) return;
       
-      const opt: any = {
-        margin:       10,
-        filename:     `Ficha_Diagnostica_Infoplaza_${selectedIp.numero}_${filters.anio}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { 
-          scale: 2, 
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#0f172a' 
-        },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
-      };
+      const dataUrl = await toPng(element, {
+        quality: 1,
+        pixelRatio: 2,
+        backgroundColor: '#0f172a',
+        filter: (node: HTMLElement) => {
+          if (node.hasAttribute && node.hasAttribute('data-html2canvas-ignore')) {
+            return false;
+          }
+          return true;
+        }
+      });
       
-      await html2pdf().set(opt).from(element).save();
+      const dummyPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pdfWidth = dummyPdf.internal.pageSize.getWidth();
+      
+      const imgProps = dummyPdf.getImageProperties(dataUrl);
+      const imgRatio = imgProps.width / imgProps.height;
+      
+      const renderWidth = pdfWidth - 20; // margen de 10mm
+      const renderHeight = renderWidth / imgRatio;
+      
+      const finalPdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [pdfWidth, renderHeight + 20]
+      });
+      
+      finalPdf.addImage(dataUrl, 'PNG', 10, 10, renderWidth, renderHeight);
+      finalPdf.save(`Ficha_Diagnostica_Infoplaza_${selectedIp.numero}_${filters.anio}.pdf`);
+      
     } catch (error) {
       console.error('Error al generar PDF:', error);
     } finally {
