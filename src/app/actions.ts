@@ -300,3 +300,31 @@ export async function getAuditReportData() {
   }
 }
 
+// Server Action para obtener el dataset del Reporte Personalizado Ad-Hoc
+export async function getCustomReportData(params: {
+  periodoTipo: string;
+  desdeAnio?: number;
+  desdeMes?: number;
+  hastaAnio?: number;
+  hastaMes?: number;
+  regionales?: string[];
+}) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('ipa_get_custom_report', {
+      p_periodo_tipo: params.periodoTipo || 'mes_actual',
+      p_desde_anio: params.desdeAnio || null,
+      p_desde_mes: params.desdeMes || null,
+      p_hasta_anio: params.hastaAnio || null,
+      p_hasta_mes: params.hastaMes || null,
+      p_regionales: params.regionales || []
+    });
+
+    if (error) throw error;
+    return { success: true, data: data || [] };
+  } catch (error: any) {
+    console.error('Error en Server Action getCustomReportData:', error);
+    return { success: false, error: error.message || 'Error al obtener el reporte personalizado' };
+  }
+}
+
+

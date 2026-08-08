@@ -350,10 +350,11 @@ export default function Page() {
                 </div>
               )}
 
-              {/* VISTA REPORTES INDIVIDUALES */}
+              {/* VISTA REPORTES */}
               {activeTab === 'reportes' && (
                 <ReportesTabSection 
                   allInfoplazas={allInfoplazas} 
+                  availablePeriods={availablePeriods}
                   filters={filters} 
                   onFiltersChange={handleFiltersChange}
                 />
