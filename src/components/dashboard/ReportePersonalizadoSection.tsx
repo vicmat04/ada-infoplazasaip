@@ -18,6 +18,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { getCustomReportData } from '../../app/actions';
+import * as XLSX from 'xlsx';
 
 interface InfoplazaItem {
   numero: number;
@@ -207,8 +208,8 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     return filteredRows.slice(start, start + pageSize);
   }, [filteredRows, currentPage]);
 
-  // Exportar a CSV (SIEMPRE incluye Identificación Fija + Métricas Opcionales + Total Visitas Reales al Final)
-  const handleExportCSV = () => {
+  // Exportar a Excel (SIEMPRE incluye Identificación Fija + Métricas Opcionales + Total Visitas al Final)
+  const handleExportExcel = () => {
     if (filteredRows.length === 0) return;
 
     // 1. Cabeceras Fijas Obligatorias de Identificación
@@ -227,19 +228,19 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     const metricHeaders = activeMetrics.map(m => m.label);
 
     // 3. Cabecera Fija Obligatoria Final: Total Visitas
-    const allHeaders = [...fixedHeaders, ...metricHeaders, 'Total Visitas'].map(h => `"${h.replace(/"/g, '""')}"`);
+    const allHeaders = [...fixedHeaders, ...metricHeaders, 'Total Visitas'];
 
-    // 4. Filas de Datos
-    const rows = filteredRows.map(row => {
+    // 4. Construir Array de Datos
+    const exportData = filteredRows.map(row => {
       const fixedVals = [
-        `"${String(row.regional ?? '').replace(/"/g, '""')}"`,
-        row.numero_infoplaza,
-        `"${String(row.nombre_infoplaza ?? '').replace(/"/g, '""')}"`,
-        row.anio,
-        `"${String(row.mes ?? '').replace(/"/g, '""')}"`,
-        `"${String(row.provincia ?? '').replace(/"/g, '""')}"`,
-        `"${String(row.distrito ?? '').replace(/"/g, '""')}"`,
-        `"${String(row.corregimiento ?? '').replace(/"/g, '""')}"`
+        row.regional ?? '',
+        row.numero_infoplaza ?? '',
+        row.nombre_infoplaza ?? '',
+        row.anio ?? '',
+        row.mes ?? '',
+        row.provincia ?? '',
+        row.distrito ?? '',
+        row.corregimiento ?? ''
       ];
 
       const metricVals = activeMetrics.map(m => {
@@ -249,17 +250,15 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
 
       const totalVal = typeof row.total_visitas === 'number' ? row.total_visitas : 0;
 
-      return [...fixedVals, ...metricVals, totalVal].join(',');
+      return [...fixedVals, ...metricVals, totalVal];
     });
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [allHeaders.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Reporte_Consolidado_Infoplazas_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 5. Generar archivo Excel
+    const worksheet = XLSX.utils.aoa_to_sheet([allHeaders, ...exportData]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte');
+    
+    XLSX.writeFile(workbook, `Reporte_Infoplazas_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   return (
@@ -563,13 +562,13 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
 
               {/* Botón Exportar */}
               <button
-                onClick={handleExportCSV}
+                onClick={handleExportExcel}
                 disabled={filteredRows.length === 0}
                 className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-lg shadow-emerald-600/20 shrink-0"
-                title="Exportar reporte completo con todas las columnas obligatorias a CSV"
+                title="Exportar reporte completo con todas las columnas obligatorias a Excel"
               >
                 <Download size={16} />
-                <span className="hidden sm:inline">Exportar CSV</span>
+                <span className="hidden sm:inline">Exportar Excel</span>
               </button>
             </div>
           </CardHeader>
