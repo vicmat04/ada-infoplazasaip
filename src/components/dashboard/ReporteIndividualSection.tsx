@@ -312,8 +312,8 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
       const element = document.getElementById('reporte-pdf-content');
       if (!element) return;
       
-      const opt = {
-        margin:       [10, 10, 10, 10],
+      const opt: any = {
+        margin:       10,
         filename:     `Ficha_Diagnostica_Infoplaza_${selectedIp.numero}_${filters.anio}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
