@@ -51,7 +51,7 @@ export default function ReportesTabSection({
             }`}
           >
             <SlidersHorizontal size={15} />
-            Reporte Personalizado (Ad-Hoc)
+            Reporte Personalizado
           </button>
 
           {/* Sub-tab 2: Ficha / Diagnóstico Individual por Infoplaza */}
@@ -71,8 +71,8 @@ export default function ReportesTabSection({
         {/* Indicador contextual ajustado */}
         <div className="px-3 py-1 rounded-lg bg-white/5 border border-[var(--card-border)] text-[11px] text-[var(--muted)] hidden xl:block truncate max-w-sm shrink">
           {subTab === 'personalizado' 
-            ? 'Generador de matrices ad-hoc, multi-regional y exportación dinámicos'
-            : 'Diagnóstico ejecutivo, perfil social e historial individual por sucursal'
+            ? 'Crea tu propio reporte seleccionando las opciones que necesites'
+            : 'Visualiza la información completa de una Infoplaza específica'
           }
         </div>
       </div>

@@ -38,7 +38,7 @@ interface ReportePersonalizadoSectionProps {
 interface MetricColumnOption {
   key: string;
   label: string;
-  category: 'genero' | 'segmentos' | 'servicios';
+  category: 'genero' | 'tipo_usuario' | 'servicios';
   defaultSelected: boolean;
 }
 
@@ -47,13 +47,13 @@ const METRIC_COLUMN_OPTIONS: MetricColumnOption[] = [
   { key: 'masculino', label: 'Masculino', category: 'genero', defaultSelected: true },
   { key: 'femenino', label: 'Femenino', category: 'genero', defaultSelected: true },
 
-  // Segmentos Educativos / Edad
-  { key: 'primaria', label: 'Primaria', category: 'segmentos', defaultSelected: true },
-  { key: 'secundaria', label: 'Secundaria', category: 'segmentos', defaultSelected: true },
-  { key: 'universitario', label: 'Universitario', category: 'segmentos', defaultSelected: true },
-  { key: 'docente', label: 'Docente', category: 'segmentos', defaultSelected: true },
-  { key: 'tercera_edad', label: 'Tercera Edad', category: 'segmentos', defaultSelected: true },
-  { key: 'publico_general', label: 'Público General', category: 'segmentos', defaultSelected: true },
+  // Tipo de Usuario
+  { key: 'primaria', label: 'Primaria', category: 'tipo_usuario', defaultSelected: true },
+  { key: 'secundaria', label: 'Secundaria', category: 'tipo_usuario', defaultSelected: true },
+  { key: 'universitario', label: 'Universitario', category: 'tipo_usuario', defaultSelected: true },
+  { key: 'docente', label: 'Docente', category: 'tipo_usuario', defaultSelected: true },
+  { key: 'tercera_edad', label: 'Tercera Edad', category: 'tipo_usuario', defaultSelected: true },
+  { key: 'publico_general', label: 'Público General', category: 'tipo_usuario', defaultSelected: true },
 
   // Servicios
   { key: 'uso_de_pc', label: 'Uso de PC', category: 'servicios', defaultSelected: true },
@@ -130,12 +130,19 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     }));
   };
 
-  const selectAllMetrics = (select: boolean) => {
-    const next: Record<string, boolean> = {};
-    METRIC_COLUMN_OPTIONS.forEach(col => {
-      next[col.key] = select;
+  const toggleGroup = (category: string) => {
+    const keys = METRIC_COLUMN_OPTIONS.filter(c => c.category === category).map(c => c.key);
+    const allSelected = keys.every(k => selectedMetrics[k]);
+    setSelectedMetrics(prev => {
+      const next = { ...prev };
+      keys.forEach(k => { next[k] = !allSelected; });
+      return next;
     });
-    setSelectedMetrics(next);
+  };
+
+  const isGroupFullySelected = (category: string) => {
+    const keys = METRIC_COLUMN_OPTIONS.filter(c => c.category === category).map(c => c.key);
+    return keys.length > 0 && keys.every(k => selectedMetrics[k]);
   };
 
   // 4. Resultado del Dataset Generado
@@ -219,8 +226,8 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     // 2. Cabeceras de métricas desglosadas seleccionadas
     const metricHeaders = activeMetrics.map(m => m.label);
 
-    // 3. Cabecera Fija Obligatoria Final: Total Visitas Reales
-    const allHeaders = [...fixedHeaders, ...metricHeaders, 'Total Visitas Reales'].map(h => `"${h.replace(/"/g, '""')}"`);
+    // 3. Cabecera Fija Obligatoria Final: Total Visitas
+    const allHeaders = [...fixedHeaders, ...metricHeaders, 'Total Visitas'].map(h => `"${h.replace(/"/g, '""')}"`);
 
     // 4. Filas de Datos
     const rows = filteredRows.map(row => {
@@ -257,13 +264,13 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
 
   return (
     <div className="grid grid-cols-1 min-w-0 gap-6 w-full max-w-full box-border">
-      {/* CARD DE CONFIGURACIÓN Y FILTROS AD-HOC */}
+      {/* CARD DE CONFIGURACIÓN Y FILTROS */}
       <Card className="animate-fade-in w-full max-w-full box-border overflow-hidden">
         <CardHeader className="border-b border-[var(--card-border)] pb-4">
           <CardTitle className="text-base font-bold text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               <SlidersHorizontal className="text-blue-500" size={20} />
-              Configuración del Reporte Personalizado
+              Configuración del Reporte
             </span>
             <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono font-medium">
               1 Fila por Mes e Infoplaza
@@ -398,43 +405,36 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
             <Info size={16} className="text-blue-400 mt-0.5 shrink-0" />
             <div>
               <strong className="text-white block font-semibold mb-0.5">Columnas Fijas Obligatorias:</strong>
-              Las columnas <span className="text-white font-mono font-medium">Regional, N° Infoplaza, Infoplaza, Año, Mes, Provincia, Distrito, Corregimiento y Total Visitas Reales</span> son inamovibles y siempre formarán parte del reporte. Usá los checkboxes a continuación para seleccionar qué desglose de datos deseas incluir.
+              Las columnas <span className="text-white font-mono font-medium">Regional, N° Infoplaza, Infoplaza, Año, Mes, Provincia, Distrito, Corregimiento y Total Visitas</span> son inamovibles y siempre formarán parte del reporte. Usá los checkboxes a continuación para seleccionar qué opciones deseas incluir.
             </div>
           </div>
 
-          {/* 4. MARCAR DÁTOS Y MÉTRICAS DESEADAS */}
+          {/* 4. MARCAR OPCIONES */}
           <div className="space-y-3 pt-2 border-t border-[var(--card-border)]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-                <Layers size={14} className="text-emerald-400" /> 3. Marcar Desglose de Datos a Incluir
+                <Layers size={14} className="text-emerald-400" /> 3. Seleccionar opciones a incluir
               </label>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => selectAllMetrics(true)}
-                  className="text-xs text-blue-400 hover:underline"
-                >
-                  Marcar todas
-                </button>
-                <span className="text-[var(--muted)]">•</span>
-                <button
-                  onClick={() => selectAllMetrics(false)}
-                  className="text-xs text-[var(--muted)] hover:underline"
-                >
-                  Desmarcar todas
-                </button>
-              </div>
             </div>
 
-            {/* Categorías de Métricas Opcionales Seleccionables */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)] w-full max-w-full box-border">
-              {/* Demografía y Segmentos */}
+            {/* Categorías Seleccionables */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)] w-full max-w-full box-border">
+              {/* Grupo 1: Género */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300 block pb-1 border-b border-[var(--card-border)]">
-                  Demografía y Segmentos de Visitantes
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'genero' || c.category === 'segmentos').map(col => (
+                <div className="flex items-center justify-between pb-2 border-b border-[var(--card-border)]">
+                  <span className="text-xs font-bold text-slate-300">Género</span>
+                  <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted)] hover:text-white cursor-pointer select-none font-medium">
+                    <input 
+                      type="checkbox" 
+                      checked={isGroupFullySelected('genero')}
+                      onChange={() => toggleGroup('genero')}
+                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0 w-3 h-3"
+                    />
+                    Todas
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 gap-2 pt-1">
+                  {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'genero').map(col => (
                     <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
                       <input
                         type="checkbox"
@@ -448,12 +448,50 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                 </div>
               </div>
 
-              {/* Servicios Solicitados */}
+              {/* Grupo 2: Tipo de Usuario */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300 block pb-1 border-b border-[var(--card-border)]">
-                  Servicios Solicitados
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="flex items-center justify-between pb-2 border-b border-[var(--card-border)]">
+                  <span className="text-xs font-bold text-slate-300">Tipo de Usuario</span>
+                  <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted)] hover:text-white cursor-pointer select-none font-medium">
+                    <input 
+                      type="checkbox" 
+                      checked={isGroupFullySelected('tipo_usuario')}
+                      onChange={() => toggleGroup('tipo_usuario')}
+                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0 w-3 h-3"
+                    />
+                    Todas
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2 pt-1">
+                  {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'tipo_usuario').map(col => (
+                    <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!selectedMetrics[col.key]}
+                        onChange={() => toggleMetric(col.key)}
+                        className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0"
+                      />
+                      {col.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grupo 3: Servicios */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between pb-2 border-b border-[var(--card-border)]">
+                  <span className="text-xs font-bold text-slate-300">Servicios</span>
+                  <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted)] hover:text-white cursor-pointer select-none font-medium">
+                    <input 
+                      type="checkbox" 
+                      checked={isGroupFullySelected('servicios')}
+                      onChange={() => toggleGroup('servicios')}
+                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0 w-3 h-3"
+                    />
+                    Todas
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2 pt-1">
                   {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'servicios').map(col => (
                     <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
                       <input
@@ -470,7 +508,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
             </div>
           </div>
 
-          {/* BOTÓN DE GENERAR DATASET */}
+          {/* BOTÓN DE GENERAR REPORTE */}
           <div className="flex justify-end pt-2 w-full max-w-full box-border">
             <button
               onClick={fetchReport}
@@ -479,11 +517,11 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
             >
               {isPending ? (
                 <>
-                  <RefreshCw className="animate-spin" size={16} /> Generando Reporte...
+                  <RefreshCw className="animate-spin" size={16} /> Generando reporte...
                 </>
               ) : (
                 <>
-                  <Filter size={16} /> Aplicar Filtros y Generar Dataset
+                  <Filter size={16} /> Generar reporte
                 </>
               )}
             </button>
@@ -502,7 +540,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                 Resultado del Reporte ({filteredRows.length.toLocaleString()} registros)
               </CardTitle>
               <p className="text-xs text-[var(--muted)] mt-1">
-                Mostrando {paginatedRows.length} registros por página. Total Visitas Reales incluido como columna fija obligatoria.
+                Mostrando {paginatedRows.length} registros por página. Total Visitas incluido como columna fija obligatoria.
               </p>
             </div>
 
@@ -558,9 +596,9 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                       </th>
                     ))}
 
-                    {/* COLUMNA FIJA OBLIGATORIA FINAL: TOTAL VISITAS REALES */}
+                    {/* COLUMNA FIJA OBLIGATORIA FINAL: TOTAL VISITAS */}
                     <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right text-emerald-400 bg-emerald-500/10">
-                      Total Visitas Reales
+                      Total Visitas
                     </th>
                   </tr>
                 </thead>
@@ -602,7 +640,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
                           );
                         })}
 
-                        {/* VALOR DE COLUMNA FIJA OBLIGATORIA FINAL: TOTAL VISITAS REALES */}
+                        {/* VALOR DE COLUMNA FIJA OBLIGATORIA FINAL: TOTAL VISITAS */}
                         <td className="px-3 sm:px-6 py-3.5 text-sm font-mono text-right font-extrabold text-emerald-400 bg-emerald-500/5">
                           {(typeof row.total_visitas === 'number' ? row.total_visitas : 0).toLocaleString()}
                         </td>
