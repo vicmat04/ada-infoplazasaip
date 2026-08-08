@@ -311,8 +311,11 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
       const { toPng } = await import('html-to-image');
       const { default: jsPDF } = await import('jspdf');
       
-      const element = document.getElementById('reporte-pdf-content');
-      if (!element) return;
+      const element = document.getElementById('executive-pdf-content');
+      if (!element) {
+        console.error("Elemento 'executive-pdf-content' no encontrado.");
+        return;
+      }
       
       const dataUrl = await toPng(element, {
         quality: 1,
