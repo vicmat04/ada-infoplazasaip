@@ -31,7 +31,8 @@ import {
   AlertCircle,
   HelpCircle,
   BookOpen,
-  Info
+  Info,
+  Printer
 } from 'lucide-react';
 import { getDashboardData, getSyncPageData, getInfoplazaMensualReport } from '../../app/actions';
 
@@ -84,6 +85,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
   const [syncHistory, setSyncHistory] = useState<any>(null);
   const [monthlyConsolidated, setMonthlyConsolidated] = useState<any[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   // 1. Sincronización en doble vía: del Estado Global (FiltersBar) al Estado Local
   useEffect(() => {
@@ -300,6 +302,38 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
     document.body.removeChild(link);
   };
 
+  const handleExportPDF = async () => {
+    if (!selectedIp) return;
+    setIsGeneratingPDF(true);
+    
+    try {
+      // Importación dinámica para evitar errores de SSR en Next.js
+      const html2pdf = (await import('html2pdf.js')).default;
+      const element = document.getElementById('reporte-pdf-content');
+      if (!element) return;
+      
+      const opt = {
+        margin:       [10, 10, 10, 10],
+        filename:     `Ficha_Diagnostica_Infoplaza_${selectedIp.numero}_${filters.anio}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#0f172a' 
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+      
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* 1. Selector Inteligente de Infoplaza */}
@@ -408,7 +442,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
 
       {/* 3. VISTA PRINCIPAL DEL REPORTE INDIVIDUAL */}
       {selectedIp && !isPending && reportData && (
-        <div className="space-y-6">
+        <div id="reporte-pdf-content" className="space-y-6">
           {/* Header de la Infoplaza Seleccionada */}
           <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-900/30 via-slate-900/50 to-slate-900 border border-blue-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
@@ -426,12 +460,20 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
               </p>
             </div>
 
-            <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto" data-html2canvas-ignore>
+              <button
+                onClick={handleExportPDF}
+                disabled={isGeneratingPDF}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-medium text-sm hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+              >
+                {isGeneratingPDF ? <RefreshCw size={16} className="animate-spin" /> : <Printer size={16} />}
+                {isGeneratingPDF ? 'Generando PDF...' : 'Descargar PDF'}
+              </button>
               <button
                 onClick={handleExportCSV}
-                className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20"
               >
-                <Download size={16} /> Descargar Ficha CSV
+                <Download size={16} /> CSV
               </button>
             </div>
           </div>
