@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { getComparativeGrowthData } from '@/app/actions';
-import { RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, CalendarDays, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 const MESES = [
   { value: 1, label: 'Enero' },
@@ -25,6 +26,61 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
   const [selectedMeses, setSelectedMeses] = useState<number[]>([]);
   const [data, setData] = useState<any[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+
+  // Helper para calcular crecimiento
+  const calculateGrowth = (current: number, prev: number) => {
+    if (!prev || prev === 0) return current > 0 ? 100 : 0;
+    return ((current - prev) / prev) * 100;
+  };
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedData = React.useMemo(() => {
+    if (!sortConfig) return data;
+    
+    return [...data].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+      
+      if (sortConfig.key === 'numero') {
+        aValue = a.numero;
+        bValue = b.numero;
+      } else if (sortConfig.key === 'nombre') {
+        aValue = a.nombre;
+        bValue = b.nombre;
+      } else if (sortConfig.key.startsWith('crec_')) {
+        const [, prevMes, currMes] = sortConfig.key.split('_').map(Number);
+        aValue = calculateGrowth(a.valoresPorMes[currMes] || 0, a.valoresPorMes[prevMes] || 0);
+        bValue = calculateGrowth(b.valoresPorMes[currMes] || 0, b.valoresPorMes[prevMes] || 0);
+      } else {
+        const mesVal = parseInt(sortConfig.key);
+        aValue = a.valoresPorMes[mesVal] || 0;
+        bValue = b.valoresPorMes[mesVal] || 0;
+      }
+      
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [data, sortConfig]);
+
+  const SortIcon = ({ columnKey }: { columnKey: string }) => {
+    if (sortConfig?.key !== columnKey) return <ArrowUpDown size={14} className="ml-1 inline opacity-50" />;
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp size={14} className="ml-1 inline text-blue-400" />
+      : <ArrowDown size={14} className="ml-1 inline text-blue-400" />;
+  };
 
   // Calcular meses por defecto al montar
   useEffect(() => {
@@ -70,11 +126,50 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
     });
   };
 
-  // Helper para calcular crecimiento
-  const calculateGrowth = (current: number, prev: number) => {
-    if (!prev || prev === 0) return current > 0 ? 100 : 0;
-    return ((current - prev) / prev) * 100;
+  const handleExport = () => {
+    if (data.length === 0) return;
+    
+    const exportData = sortedData.map(row => {
+      const obj: any = {
+        'No.': row.numero,
+        'Infoplaza': row.nombre,
+      };
+      
+      selectedMeses.forEach((mesVal, idx) => {
+        const mesLabel = MESES.find(m => m.value === mesVal)?.label;
+        const currentVal = row.valoresPorMes[mesVal] || 0;
+        
+        if (idx > 0) {
+          const prevMesVal = selectedMeses[idx - 1];
+          const prevVal = row.valoresPorMes[prevMesVal] || 0;
+          const growth = calculateGrowth(currentVal, prevVal);
+          const prevLabel = MESES.find(m => m.value === prevMesVal)?.label.substring(0,3);
+          
+          obj[`Crecimiento ${prevLabel}->${mesLabel?.substring(0,3)} (%)`] = growth.toFixed(2);
+        }
+        
+        obj[`Visitas ${mesLabel}`] = currentVal;
+      });
+      
+      return obj;
+    });
+    
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Comparativa");
+    XLSX.writeFile(wb, `Comparativa_Crecimiento_${filters.anio || new Date().getFullYear()}.xlsx`);
   };
+
+  // Calcular meses disponibles basados en el año filtrado
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const targetYear = filters.anio || currentYear;
+  
+  const availableMonths = MESES.filter(m => {
+    if (targetYear > currentYear) return false;
+    if (targetYear < currentYear) return true;
+    return m.value <= currentMonth;
+  });
 
   return (
     <Card className="border border-white/10 shadow-xl mt-6 overflow-hidden bg-slate-900/40 backdrop-blur-sm">
@@ -91,8 +186,19 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
             <p className="text-xs text-[var(--muted)]">Analiza la variación de visitas mes a mes por Infoplaza</p>
           </div>
         </div>
-        <div className="p-1 rounded bg-white/5 text-slate-400">
-          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        <div className="flex items-center gap-3">
+          {data.length > 0 && isExpanded && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleExport(); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors"
+            >
+              <Download size={14} />
+              Exportar
+            </button>
+          )}
+          <div className="p-1 rounded bg-white/5 text-slate-400">
+            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </div>
         </div>
       </div>
 
@@ -104,7 +210,7 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
               Selecciona los meses a comparar (Año {filters.anio || new Date().getFullYear()})
             </span>
             <div className="flex flex-wrap gap-2">
-              {MESES.map(m => {
+              {availableMonths.map(m => {
                 const isSelected = selectedMeses.includes(m.value);
                 return (
                   <button
@@ -120,6 +226,9 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
                   </button>
                 );
               })}
+              {availableMonths.length === 0 && (
+                <span className="text-xs text-slate-500 italic">No hay meses disponibles para el año seleccionado.</span>
+              )}
             </div>
           </div>
 
@@ -145,16 +254,20 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-slate-300 uppercase bg-slate-900/90 sticky top-0 z-10 shadow-md">
                   <tr>
-                    <th className="px-4 py-4 font-semibold w-16 whitespace-nowrap">No.</th>
-                    <th className="px-4 py-4 font-semibold min-w-[200px] whitespace-nowrap">Infoplaza</th>
+                    <th className="px-4 py-4 font-semibold w-16 whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('numero')}>
+                      No. <SortIcon columnKey="numero" />
+                    </th>
+                    <th className="px-4 py-4 font-semibold min-w-[200px] whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('nombre')}>
+                      Infoplaza <SortIcon columnKey="nombre" />
+                    </th>
                     {selectedMeses.map((mesVal, idx) => (
                       <React.Fragment key={mesVal}>
-                        <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap">
-                          {MESES.find(m => m.value === mesVal)?.label}
+                        <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort(mesVal.toString())}>
+                          {MESES.find(m => m.value === mesVal)?.label} <SortIcon columnKey={mesVal.toString()} />
                         </th>
                         {idx > 0 && (
-                          <th className="px-4 py-4 font-semibold text-center bg-blue-900/20 border-l border-blue-500/20 w-32 whitespace-nowrap text-blue-200">
-                            Crec. {MESES.find(m => m.value === selectedMeses[idx-1])?.label.substring(0,3)}→{MESES.find(m => m.value === mesVal)?.label.substring(0,3)}
+                          <th className="px-4 py-4 font-semibold text-center bg-blue-900/20 border-l border-blue-500/20 w-32 whitespace-nowrap text-blue-200 cursor-pointer hover:bg-blue-900/40 transition-colors" onClick={() => handleSort(`crec_${selectedMeses[idx-1]}_${mesVal}`)}>
+                            Crec. {MESES.find(m => m.value === selectedMeses[idx-1])?.label.substring(0,3)}→{MESES.find(m => m.value === mesVal)?.label.substring(0,3)} <SortIcon columnKey={`crec_${selectedMeses[idx-1]}_${mesVal}`} />
                           </th>
                         )}
                       </React.Fragment>
@@ -162,7 +275,7 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {data.map((row) => (
+                  {sortedData.map((row) => (
                     <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
                       <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
                       <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
