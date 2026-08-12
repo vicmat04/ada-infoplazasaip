@@ -327,4 +327,57 @@ export async function getCustomReportData(params: {
   }
 }
 
+// Server Action para obtener datos para la tabla comparativa de crecimiento mensual
+export async function getComparativeGrowthData(filters: DashboardFilters, meses: number[]) {
+  try {
+    const anio = filters.anio || new Date().getFullYear();
+    
+    if (!meses || meses.length === 0) {
+      return { success: true, data: [] };
+    }
 
+    // Usamos el cliente admin para asegurar acceso de solo lectura completo de las tablas
+    let query = supabaseAdmin
+      .from('resumen_demografico')
+      .select('numero_infoplaza, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
+      .eq('anio', anio)
+      .in('mes_numero', meses)
+      .eq('infoplazas.estado', 'Activa'); // Regla 11: Excluir cerradas definitivamente
+
+    if (filters.regional) {
+      query = query.eq('infoplazas.regional', filters.regional);
+    }
+    if (filters.provincia) {
+      query = query.eq('infoplazas.provincia', filters.provincia);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    // Agrupar los resultados por infoplaza
+    const groupedData: Record<number, any> = {};
+
+    (data || []).forEach((row: any) => {
+      const num = row.numero_infoplaza;
+      if (!groupedData[num]) {
+        groupedData[num] = {
+          numero: num,
+          nombre: row.infoplazas.nombre,
+          regional: row.infoplazas.regional,
+          provincia: row.infoplazas.provincia,
+          valoresPorMes: {}
+        };
+      }
+      groupedData[num].valoresPorMes[row.mes_numero] = row.total;
+    });
+
+    // Convertir el objeto agrupado a un arreglo y ordenarlo por número de infoplaza
+    const result = Object.values(groupedData).sort((a: any, b: any) => a.numero - b.numero);
+
+    return { success: true, data: result };
+  } catch (error: any) {
+    console.error('Error en Server Action getComparativeGrowthData:', error);
+    return { success: false, error: error.message || 'Error al obtener datos comparativos' };
+  }
+}

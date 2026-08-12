@@ -13,6 +13,7 @@ import DrawerDetail from '../components/dashboard/DrawerDetail';
 import ServiciosTabSection from '../components/dashboard/ServiciosTabSection';
 import ReportesTabSection from '../components/dashboard/ReportesTabSection';
 import AuditTabSection from '../components/dashboard/AuditTabSection';
+import ComparativeGrowthTable from '../components/dashboard/ComparativeGrowthTable';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { getDashboardData, getInfoplazasCatalog, getAvailablePeriods } from './actions';
 import { 
@@ -285,6 +286,9 @@ export default function Page() {
                     syncRegionalRows={dashboardData.syncRegionalRows}
                     isLoading={isPending && !dashboardData}
                   />
+
+                  {/* Tabla Comparativa de Crecimiento (MoM) */}
+                  <ComparativeGrowthTable filters={filters} />
                  </div>
               )}
 
