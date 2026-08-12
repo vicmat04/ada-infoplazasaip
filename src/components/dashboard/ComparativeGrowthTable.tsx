@@ -291,19 +291,30 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
                           const isPositive = growth > 0;
                           const isNegative = growth < 0;
                           
+                          let displayGrowth = growth.toFixed(1) + '%';
+                          if (Math.abs(growth) >= 999.5) {
+                            displayGrowth = (growth / 1000).toFixed(1) + 'k%';
+                          }
+                          
+                          const tooltipTitle = prevVal < 50 && prevVal > 0
+                            ? `Base muy baja para calcular crecimiento real (Mes anterior: ${prevVal} visitas)` 
+                            : `Crecimiento respecto al mes anterior`;
+
                           growthNode = (
                             <td className="px-4 py-3 text-center bg-blue-900/10 border-l border-blue-500/10">
                               {prevVal === 0 && currentVal === 0 ? (
                                 <span className="text-[var(--muted)] text-xs font-medium">-</span>
                               ) : (
-                                <div className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-xs font-bold w-full max-w-[80px] mx-auto ${
+                                <div 
+                                  title={tooltipTitle}
+                                  className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-xs font-bold w-full max-w-[80px] mx-auto transition-colors ${
                                   isPositive ? 'text-emerald-400 bg-emerald-400/10' :
                                   isNegative ? 'text-rose-400 bg-rose-400/10' :
                                   'text-slate-400 bg-slate-400/10'
-                                }`}>
+                                } ${prevVal < 50 && prevVal > 0 ? 'cursor-help border border-dashed border-emerald-500/30 hover:bg-emerald-400/20' : ''}`}>
                                   {isPositive && <TrendingUp size={12} />}
                                   {isNegative && <TrendingDown size={12} />}
-                                  {isPositive ? '+' : ''}{growth.toFixed(1)}%
+                                  {isPositive ? '+' : ''}{displayGrowth}
                                 </div>
                               )}
                             </td>
