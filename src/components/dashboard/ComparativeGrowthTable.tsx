@@ -55,7 +55,7 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
     startTransition(async () => {
       const res = await getComparativeGrowthData(filters, selectedMeses);
       if (res.success) {
-        setData(res.data);
+        setData(res.data || []);
       }
     });
   }, [filters, selectedMeses, isExpanded]);

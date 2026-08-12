@@ -125,7 +125,7 @@ interface CustomTooltipProps {
 const CustomAreaTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const totalVal = payload.reduce((acc, item) => acc + (item.value || 0), 0);
-    const crecimiento = payload[0]?.payload?.crecimientoMensual;
+    const crecimiento = payload[0]?.payload?.crecimientoMensual as number | undefined;
     
     return (
       <div className="glass rounded-lg p-3 text-xs border border-white/10 shadow-xl min-w-[180px]">
