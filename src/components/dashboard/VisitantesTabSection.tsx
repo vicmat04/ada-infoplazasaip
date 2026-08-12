@@ -125,9 +125,22 @@ interface CustomTooltipProps {
 const CustomAreaTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const totalVal = payload.reduce((acc, item) => acc + (item.value || 0), 0);
+    const crecimiento = payload[0]?.payload?.crecimientoMensual;
+    
     return (
       <div className="glass rounded-lg p-3 text-xs border border-white/10 shadow-xl min-w-[180px]">
-        <p className="font-bold mb-2 text-slate-200">{label}</p>
+        <div className="flex justify-between items-center mb-2 gap-4">
+          <p className="font-bold text-slate-200">{label}</p>
+          {crecimiento !== undefined && crecimiento !== null && (
+            <span className={`text-[10px] font-extrabold flex items-center gap-0.5 px-1.5 py-0.5 rounded border ${
+              crecimiento >= 0 
+                ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+                : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+            }`} title="Crecimiento respecto al mes anterior">
+              {crecimiento >= 0 ? '▲' : '▼'} {Math.abs(crecimiento).toFixed(1)}%
+            </span>
+          )}
+        </div>
         <div className="space-y-1.5">
           {payload.map((item, idx) => {
             const pct = totalVal > 0 ? (item.value / totalVal) * 100 : 0;
@@ -328,12 +341,25 @@ export default function VisitantesTabSection({
     const trend = data?.tendenciaVisitantes || [];
     if (trend.length === 1) {
       return [
-        { mes: '', masculino: 0, femenino: 0, total: 0 },
-        { ...trend[0] },
-        { mes: '', masculino: 0, femenino: 0, total: 0 }
+        { mes: '', masculino: 0, femenino: 0, total: 0, crecimientoMensual: null },
+        { ...trend[0], crecimientoMensual: null },
+        { mes: '', masculino: 0, femenino: 0, total: 0, crecimientoMensual: null }
       ];
     }
-    return trend;
+    return trend.map((item, idx, arr) => {
+      let crecimientoMensual = null;
+      if (idx > 0) {
+        const prevTotal = arr[idx - 1].total;
+        if (prevTotal > 0) {
+          crecimientoMensual = ((item.total - prevTotal) / prevTotal) * 100;
+        } else if (item.total > 0) {
+          crecimientoMensual = 100;
+        } else {
+          crecimientoMensual = 0;
+        }
+      }
+      return { ...item, crecimientoMensual };
+    });
   }, [data?.tendenciaVisitantes]);
 
   // Lógica de ordenamiento de tabla
