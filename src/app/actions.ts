@@ -434,3 +434,62 @@ export async function getYoYGrowthData(filters: DashboardFilters, mes: number, a
     return { success: false, error: error.message || 'Error al obtener datos comparativos interanuales' };
   }
 }
+
+// Server Action para obtener datos agregados por cuatrimestre
+export async function getCuatrimestreData(filters: DashboardFilters, anios: number[]) {
+  try {
+    if (!anios || anios.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    let query = supabaseAdmin
+      .from('resumen_demografico')
+      .select('numero_infoplaza, anio, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
+      .in('anio', anios)
+      .eq('infoplazas.estado', 'Activa'); // Regla 11: Excluir cerradas definitivamente
+
+    if (filters.regional) {
+      query = query.eq('infoplazas.regional', filters.regional);
+    }
+    if (filters.provincia) {
+      query = query.eq('infoplazas.provincia', filters.provincia);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Agrupar los resultados por infoplaza
+    const groupedData: Record<number, any> = {};
+
+    (data || []).forEach((row: any) => {
+      const num = row.numero_infoplaza;
+      if (!groupedData[num]) {
+        groupedData[num] = {
+          numero: num,
+          nombre: row.infoplazas.nombre,
+          regional: row.infoplazas.regional,
+          provincia: row.infoplazas.provincia,
+          valores: {} // anio -> cuatrimestre -> total
+        };
+      }
+      
+      const anio = row.anio;
+      const mes = row.mes_numero;
+      // Cuatrimestre: 1-4 = C1, 5-8 = C2, 9-12 = C3
+      const cuatrimestre = mes <= 4 ? 1 : mes <= 8 ? 2 : 3;
+
+      if (!groupedData[num].valores[anio]) {
+        groupedData[num].valores[anio] = { 1: 0, 2: 0, 3: 0 };
+      }
+      groupedData[num].valores[anio][cuatrimestre] += row.total;
+    });
+
+    // Convertir el objeto agrupado a un arreglo y ordenarlo por número de infoplaza
+    const result = Object.values(groupedData).sort((a: any, b: any) => a.numero - b.numero);
+
+    return { success: true, data: result };
+  } catch (error: any) {
+    console.error('Error en Server Action getCuatrimestreData:', error);
+    return { success: false, error: error.message || 'Error al obtener datos de cuatrimestres' };
+  }
+}
