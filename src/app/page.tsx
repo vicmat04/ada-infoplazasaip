@@ -14,6 +14,7 @@ import ServiciosTabSection from '../components/dashboard/ServiciosTabSection';
 import ReportesTabSection from '../components/dashboard/ReportesTabSection';
 import AuditTabSection from '../components/dashboard/AuditTabSection';
 import ComparativeGrowthTable from '../components/dashboard/ComparativeGrowthTable';
+import YoYGrowthTable from '../components/dashboard/YoYGrowthTable';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { getDashboardData, getInfoplazasCatalog, getAvailablePeriods } from './actions';
 import { 
@@ -289,6 +290,7 @@ export default function Page() {
 
                   {/* Tabla Comparativa de Crecimiento (MoM) */}
                   <ComparativeGrowthTable filters={filters} />
+                  <YoYGrowthTable filters={filters} />
                  </div>
               )}
 
