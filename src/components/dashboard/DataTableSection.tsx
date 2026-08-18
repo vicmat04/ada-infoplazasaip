@@ -151,11 +151,16 @@ export default function DataTableSection({ data, onViewDetail, isLoading = false
     <Card className="animate-fade-in">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[var(--card-border)]">
         <div>
-          <CardTitle className="text-base font-bold text-slate-200">
-            Detalle de Infoplazas y Cobertura Operativa
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-base font-bold text-slate-200">
+              Detalle de Infoplazas y Cobertura Operativa
+            </CardTitle>
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Mostrando {filteredData.length} infoplazas
+            </span>
+          </div>
           <p className="text-xs text-[var(--muted)] mt-1">
-            Visualización detallada del rendimiento e historial de la red seleccionada ({filteredData.length} registros).
+            Visualización detallada del rendimiento e historial de la red seleccionada.
           </p>
         </div>
         
@@ -190,7 +195,8 @@ export default function DataTableSection({ data, onViewDetail, isLoading = false
         <table className="w-full min-w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-[var(--card-border)] bg-white/[0.01]">
-              <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">N°</th>
+              <th className="px-3 sm:px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)] w-12 text-center">#</th>
+              <th className="px-3 sm:px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)] w-16">No.</th>
               <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Nombre</th>
               <th className="hidden sm:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Regional</th>
               <th className="hidden md:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Distrito</th>
@@ -203,14 +209,19 @@ export default function DataTableSection({ data, onViewDetail, isLoading = false
           <tbody className="divide-y divide-[var(--card-border)]">
             {paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={onViewDetail ? 8 : 7} className="px-6 py-12 text-center text-sm text-[var(--muted)]">
+                <td colSpan={onViewDetail ? 9 : 8} className="px-6 py-12 text-center text-sm text-[var(--muted)]">
                   No se encontraron resultados para los filtros y búsqueda activa.
                 </td>
               </tr>
             ) : (
-              paginatedData.map((row) => (
+              paginatedData.map((row, idx) => (
                 <tr key={row.numero} className="hover:bg-white/[0.02] transition-colors group">
-                  <td className="px-3 sm:px-6 py-3.5 text-sm font-bold text-slate-300">#{row.numero}</td>
+                  <td className="px-3 sm:px-4 py-3.5 text-xs font-mono text-slate-500 text-center">
+                    {(currentPage - 1) * itemsPerPage + idx + 1}
+                  </td>
+                  <td className="px-3 sm:px-4 py-3.5 text-sm font-bold text-slate-300 font-mono">
+                    {row.numero}
+                  </td>
                   <td className="px-3 sm:px-6 py-3.5 text-sm font-semibold text-slate-100 max-w-[120px] sm:max-w-none truncate sm:whitespace-normal" title={row.nombre}>{row.nombre}</td>
                   <td className="hidden sm:table-cell px-6 py-3.5 text-sm text-[var(--muted)]">{row.regional}</td>
                   <td className="hidden md:table-cell px-6 py-3.5 text-sm text-[var(--muted)]">{row.distrito}</td>

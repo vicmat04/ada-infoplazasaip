@@ -46,3 +46,9 @@ El módulo Ejecuciones/Cargas es solo para Admin.
 
 ### RN-015 - Exportación contextual
 No existirá un menú independiente de exportaciones; cada módulo tendrá su botón de exportar vista actual.
+
+### RN-016 - Inclusión Histórica por Actividad en Reportes y Tablas
+1. Las Infoplazas en estado "Cerrada Definitivamente" se deben contabilizar y presentar en reportes, tablas comparativas y exportaciones históricas si y solo si poseen registros con actividad (`total > 0`) en el período/rango consultado (indicando su estado como "Cerrada"). Si no tuvieron actividad en ese período, se excluyen de la vista.
+2. Las Infoplazas en estado "Activa" se deben presentar siempre en el listado de las tablas (con valor 0 o `-` si no tuvieron registros en el período) para evidenciar su pertenencia a la red viva.
+3. El módulo de Sincronización y Monitoreo operativo mantiene la regla estricta de evaluar únicamente la red de infoplazas activas vivas.
+

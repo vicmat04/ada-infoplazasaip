@@ -64,6 +64,9 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
       } else if (sortConfig.key === 'provincia') {
         aValue = a.provincia;
         bValue = b.provincia;
+      } else if (sortConfig.key === 'estado') {
+        aValue = a.estado || '';
+        bValue = b.estado || '';
       } else if (sortConfig.key.startsWith('crec_')) {
         const [, prevKey, currKey] = sortConfig.key.split('_').map(Number);
         
@@ -128,19 +131,22 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
   const handleExport = () => {
     if (data.length === 0) return;
     
-    const exportData = sortedData.map(row => {
+    const exportData = sortedData.map((row, idx) => {
+      const isActiva = (row.estado || '').toLowerCase() === 'activa';
       const obj: any = { 
+        '#': idx + 1,
         'No.': row.numero, 
-        'Infoplaza': row.nombre,
-        'Regional': row.regional,
+        'Infoplaza': row.nombre, 
+        'Regional': row.regional, 
         'Provincia': row.provincia,
+        'Estado': isActiva ? 'Activa' : 'Cerrada',
       };
       
       if (mode === 'intra') {
-        intraCuatrimestres.forEach((cVal, idx) => {
+        intraCuatrimestres.forEach((cVal, mIdx) => {
           const currentVal = row.valores[intraAnio]?.[cVal] || 0;
-          if (idx > 0) {
-            const prevCVal = intraCuatrimestres[idx - 1];
+          if (mIdx > 0) {
+            const prevCVal = intraCuatrimestres[mIdx - 1];
             const prevVal = row.valores[intraAnio]?.[prevCVal] || 0;
             const growth = calculateGrowth(currentVal, prevVal);
             obj[`Crecimiento C${prevCVal}->C${cVal} (%)`] = growth.toFixed(2);
@@ -148,10 +154,10 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
           obj[`Visitas C${cVal}`] = currentVal;
         });
       } else {
-        interAnios.forEach((anioVal, idx) => {
+        interAnios.forEach((anioVal, aIdx) => {
           const currentVal = row.valores[anioVal]?.[interCuatrimestre] || 0;
-          if (idx > 0) {
-            const prevAnioVal = interAnios[idx - 1];
+          if (aIdx > 0) {
+            const prevAnioVal = interAnios[aIdx - 1];
             const prevVal = row.valores[prevAnioVal]?.[interCuatrimestre] || 0;
             const growth = calculateGrowth(currentVal, prevVal);
             obj[`Crecimiento ${prevAnioVal}->${anioVal} (%)`] = growth.toFixed(2);
@@ -217,15 +223,22 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
             <PieChart size={20} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-200">Análisis Cuatrimestral</h3>
-            <p className="text-xs text-[var(--muted)]">Evalúa tendencias en bloques de 4 meses (C1, C2, C3)</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-200">Comparativa por Cuatrimestres</h3>
+              {data.length > 0 && isExpanded && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  Mostrando {sortedData.length} infoplazas
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-[var(--muted)]">Analiza el rendimiento por períodos de 4 meses (C1: Ene-Abr, C2: May-Ago, C3: Sep-Dic)</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {data.length > 0 && isExpanded && (
             <button 
               onClick={(e) => { e.stopPropagation(); handleExport(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors"
             >
               <Download size={14} />
               Exportar
@@ -239,31 +252,43 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
 
       {isExpanded && (
         <CardContent className="p-0 border-t border-white/5">
-          {/* Tabs Mode */}
-          <div className="flex border-b border-white/5 bg-slate-950/50">
-            <button
-              onClick={() => setMode('intra')}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
-                mode === 'intra' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-500/5' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-              }`}
-            >
-              Evolución en el Año (QoQ)
-            </button>
-            <button
-              onClick={() => setMode('inter')}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
-                mode === 'inter' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-500/5' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-              }`}
-            >
-              Comparativa Histórica (YoY)
-            </button>
+          {/* Selector de Modo */}
+          <div className="p-4 bg-slate-950/40 border-b border-white/5 flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMode('intra')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  mode === 'intra'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                    : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                }`}
+              >
+                Comparar Cuatrimestres de un Año
+              </button>
+              <button
+                onClick={() => setMode('inter')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  mode === 'inter'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                    : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                }`}
+              >
+                Mismo Cuatrimestre entre Años
+              </button>
+            </div>
+            {data.length > 0 && (
+              <span className="text-xs text-slate-400 font-medium">
+                Mostrando <strong className="text-slate-200">{sortedData.length}</strong> infoplazas
+              </span>
+            )}
           </div>
 
-          <div className="p-4 bg-slate-950/30 border-b border-white/5 flex flex-col md:flex-row gap-6">
+          {/* Controles Dinámicos */}
+          <div className="p-4 bg-slate-950/20 border-b border-white/5 flex flex-wrap gap-6 items-center">
             {mode === 'intra' ? (
               <>
                 <div className="flex flex-col gap-3">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Año de Análisis</span>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Año a Analizar</span>
                   <select 
                     value={intraAnio} 
                     onChange={(e) => setIntraAnio(Number(e.target.value))}
@@ -347,36 +372,42 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-slate-300 uppercase bg-slate-900/90 sticky top-0 z-10 shadow-md">
                   <tr>
-                    <th className="px-4 py-4 font-semibold w-16 cursor-pointer hover:bg-slate-800" onClick={() => handleSort('numero')}>
+                    <th className="px-3 py-4 font-semibold w-12 text-center whitespace-nowrap text-slate-400">
+                      #
+                    </th>
+                    <th className="px-4 py-4 font-semibold w-16 whitespace-nowrap cursor-pointer hover:bg-slate-800" onClick={() => handleSort('numero')}>
                       No. <SortIcon columnKey="numero" />
                     </th>
-                    <th className="px-4 py-4 font-semibold min-w-[200px] cursor-pointer hover:bg-slate-800" onClick={() => handleSort('nombre')}>
+                    <th className="px-4 py-4 font-semibold min-w-[200px] whitespace-nowrap cursor-pointer hover:bg-slate-800" onClick={() => handleSort('nombre')}>
                       Infoplaza <SortIcon columnKey="nombre" />
                     </th>
-                    <th className="px-4 py-4 font-semibold cursor-pointer hover:bg-slate-800" onClick={() => handleSort('regional')}>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800" onClick={() => handleSort('regional')}>
                       Regional <SortIcon columnKey="regional" />
                     </th>
-                    <th className="px-4 py-4 font-semibold cursor-pointer hover:bg-slate-800" onClick={() => handleSort('provincia')}>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800" onClick={() => handleSort('provincia')}>
                       Provincia <SortIcon columnKey="provincia" />
+                    </th>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 text-center" onClick={() => handleSort('estado')}>
+                      Estado <SortIcon columnKey="estado" />
                     </th>
                     {mode === 'intra' ? intraCuatrimestres.map((cVal, idx) => (
                       <React.Fragment key={cVal}>
-                        <th className="px-4 py-4 font-semibold text-right border-l border-white/5 cursor-pointer hover:bg-slate-800" onClick={() => handleSort(cVal.toString())}>
+                        <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap cursor-pointer hover:bg-slate-800" onClick={() => handleSort(cVal.toString())}>
                           Visitas C{cVal} {intraAnio} <SortIcon columnKey={cVal.toString()} />
                         </th>
                         {idx > 0 && (
-                          <th className="px-4 py-4 font-semibold text-center bg-purple-900/20 border-l border-purple-500/20 w-32 text-purple-200 cursor-pointer hover:bg-purple-900/40" onClick={() => handleSort(`crec_${intraCuatrimestres[idx-1]}_${cVal}`)}>
+                          <th className="px-4 py-4 font-semibold text-center bg-purple-900/20 border-l border-purple-500/20 w-32 whitespace-nowrap text-purple-200 cursor-pointer hover:bg-purple-900/40" onClick={() => handleSort(`crec_${intraCuatrimestres[idx-1]}_${cVal}`)}>
                             Crec. C{intraCuatrimestres[idx-1]}→C{cVal} <SortIcon columnKey={`crec_${intraCuatrimestres[idx-1]}_${cVal}`} />
                           </th>
                         )}
                       </React.Fragment>
                     )) : interAnios.map((anioVal, idx) => (
                       <React.Fragment key={anioVal}>
-                        <th className="px-4 py-4 font-semibold text-right border-l border-white/5 cursor-pointer hover:bg-slate-800" onClick={() => handleSort(anioVal.toString())}>
+                        <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap cursor-pointer hover:bg-slate-800" onClick={() => handleSort(anioVal.toString())}>
                           Visitas C{interCuatrimestre} {anioVal} <SortIcon columnKey={anioVal.toString()} />
                         </th>
                         {idx > 0 && (
-                          <th className="px-4 py-4 font-semibold text-center bg-purple-900/20 border-l border-purple-500/20 w-32 text-purple-200 cursor-pointer hover:bg-purple-900/40" onClick={() => handleSort(`crec_${interAnios[idx-1]}_${anioVal}`)}>
+                          <th className="px-4 py-4 font-semibold text-center bg-purple-900/20 border-l border-purple-500/20 w-32 whitespace-nowrap text-purple-200 cursor-pointer hover:bg-purple-900/40" onClick={() => handleSort(`crec_${interAnios[idx-1]}_${anioVal}`)}>
                             Crec. '{interAnios[idx-1].toString().slice(-2)}→'{anioVal.toString().slice(-2)} <SortIcon columnKey={`crec_${interAnios[idx-1]}_${anioVal}`} />
                           </th>
                         )}
@@ -385,36 +416,49 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {sortedData.map((row) => (
-                    <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
-                      <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
-                      <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">{row.regional}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">{row.provincia}</td>
-                      
-                      {mode === 'intra' ? intraCuatrimestres.map((cVal, idx) => {
-                        const currentVal = row.valores[intraAnio]?.[cVal] || 0;
-                        return (
-                          <React.Fragment key={cVal}>
-                            <td className="px-4 py-3 text-right font-mono text-slate-300 border-l border-white/5">
-                              {currentVal.toLocaleString()}
-                            </td>
-                            {idx > 0 && renderGrowthNode(currentVal, row.valores[intraAnio]?.[intraCuatrimestres[idx-1]] || 0, `C${intraCuatrimestres[idx-1]}`)}
-                          </React.Fragment>
-                        );
-                      }) : interAnios.map((anioVal, idx) => {
-                        const currentVal = row.valores[anioVal]?.[interCuatrimestre] || 0;
-                        return (
-                          <React.Fragment key={anioVal}>
-                            <td className="px-4 py-3 text-right font-mono text-slate-300 border-l border-white/5">
-                              {currentVal.toLocaleString()}
-                            </td>
-                            {idx > 0 && renderGrowthNode(currentVal, row.valores[interAnios[idx-1]]?.[interCuatrimestre] || 0, `'${interAnios[idx-1].toString().slice(-2)}`)}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                  {sortedData.map((row, index) => {
+                    const isActiva = (row.estado || '').toLowerCase() === 'activa';
+                    return (
+                      <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
+                        <td className="px-3 py-3 text-slate-500 font-mono text-xs text-center">{index + 1}</td>
+                        <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
+                        <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
+                        <td className="px-4 py-3 text-slate-400 text-xs">{row.regional}</td>
+                        <td className="px-4 py-3 text-slate-400 text-xs">{row.provincia}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            isActiva 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          }`}>
+                            {isActiva ? 'Activa' : 'Cerrada'}
+                          </span>
+                        </td>
+                        
+                        {mode === 'intra' ? intraCuatrimestres.map((cVal, idx) => {
+                          const currentVal = row.valores[intraAnio]?.[cVal] || 0;
+                          return (
+                            <React.Fragment key={cVal}>
+                              <td className="px-4 py-3 text-right font-mono text-slate-300 border-l border-white/5">
+                                {currentVal.toLocaleString()}
+                              </td>
+                              {idx > 0 && renderGrowthNode(currentVal, row.valores[intraAnio]?.[intraCuatrimestres[idx-1]] || 0, `C${intraCuatrimestres[idx-1]}`)}
+                            </React.Fragment>
+                          );
+                        }) : interAnios.map((anioVal, idx) => {
+                          const currentVal = row.valores[anioVal]?.[interCuatrimestre] || 0;
+                          return (
+                            <React.Fragment key={anioVal}>
+                              <td className="px-4 py-3 text-right font-mono text-slate-300 border-l border-white/5">
+                                {currentVal.toLocaleString()}
+                              </td>
+                              {idx > 0 && renderGrowthNode(currentVal, row.valores[interAnios[idx-1]]?.[interCuatrimestre] || 0, `'${interAnios[idx-1].toString().slice(-2)}`)}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

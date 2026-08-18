@@ -30,7 +30,7 @@ Es una plataforma web para análisis, control operativo y seguimiento de Infopla
 8. Toda exportación debe incluir solo lo visible y permitido.
 9. Todo formulario debe validar datos antes de guardar.
 10. Toda acción administrativa importante debe registrarse en auditoría.
-11. Las Infoplazas en estado "Cerrada Definitivamente" deben ser excluidas absolutamente de todos los agregados, tendencias, totales y gráficos del Dashboard (salvo si se requiere explícitamente un reporte histórico acumulado).
+11. Las Infoplazas en estado "Cerrada Definitivamente" deben ser excluidas de los agregados operativos y monitoreo en vivo del Dashboard, pero en reportes, tablas comparativas y análisis históricos (RN-016) se contabilizan y presentan si y solo si poseen registros con actividad (`total > 0`) en el período consultado.
 12. Adaptabilidad móvil obligatoria: Todo componente de interfaz de usuario y vista de datos debe ser diseñado y maquetado bajo estándares responsivos para que se adapte perfectamente a pantallas móviles y tablets.
 
 

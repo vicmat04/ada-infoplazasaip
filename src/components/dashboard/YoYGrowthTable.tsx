@@ -69,6 +69,9 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
       } else if (sortConfig.key === 'provincia') {
         aValue = a.provincia;
         bValue = b.provincia;
+      } else if (sortConfig.key === 'estado') {
+        aValue = a.estado || '';
+        bValue = b.estado || '';
       } else if (sortConfig.key.startsWith('crec_')) {
         const [, prevAnio, currAnio] = sortConfig.key.split('_').map(Number);
         aValue = calculateGrowth(a.valoresPorAnio[currAnio] || 0, a.valoresPorAnio[prevAnio] || 0);
@@ -128,19 +131,22 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
     
     const mesLabel = MESES.find(m => m.value === selectedMes)?.label || '';
     
-    const exportData = sortedData.map(row => {
+    const exportData = sortedData.map((row, idx) => {
+      const isActiva = (row.estado || '').toLowerCase() === 'activa';
       const obj: any = {
+        '#': idx + 1,
         'No.': row.numero,
         'Infoplaza': row.nombre,
         'Regional': row.regional,
         'Provincia': row.provincia,
+        'Estado': isActiva ? 'Activa' : 'Cerrada',
       };
       
-      selectedAnios.forEach((anioVal, idx) => {
+      selectedAnios.forEach((anioVal, aIdx) => {
         const currentVal = row.valoresPorAnio[anioVal] || 0;
         
-        if (idx > 0) {
-          const prevAnioVal = selectedAnios[idx - 1];
+        if (aIdx > 0) {
+          const prevAnioVal = selectedAnios[aIdx - 1];
           const prevVal = row.valoresPorAnio[prevAnioVal] || 0;
           const growth = calculateGrowth(currentVal, prevVal);
           
@@ -155,8 +161,8 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
     
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Comparativa Interanual");
-    XLSX.writeFile(wb, `Comparativa_Interanual_${mesLabel}_${currentYear}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Mismo Mes Entre Años");
+    XLSX.writeFile(wb, `Comparativa_Mismo_Mes_${mesLabel}_${currentYear}.xlsx`);
   };
 
   return (
@@ -170,8 +176,15 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
             <CalendarDays size={20} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-200">Comparativa Interanual (YoY) por Mes</h3>
-            <p className="text-xs text-[var(--muted)]">Analiza la evolución histórica de un mes específico a través de los años</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-200">Comparativa del Mismo Mes entre Años</h3>
+              {data.length > 0 && isExpanded && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Mostrando {sortedData.length} infoplazas
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-[var(--muted)]">Evalúa el rendimiento y crecimiento de un mes específico a lo largo de los años</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -211,9 +224,16 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
 
             {/* Controles de años */}
             <div className="flex flex-col gap-3 flex-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                2. Selecciona los años a comparar
-              </span>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  2. Selecciona los años a comparar
+                </span>
+                {data.length > 0 && (
+                  <span className="text-xs text-slate-400 font-medium">
+                    Mostrando <strong className="text-slate-200">{sortedData.length}</strong> infoplazas
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {AVAILABLE_YEARS.map(anioVal => {
                   const isSelected = selectedAnios.includes(anioVal);
@@ -257,6 +277,9 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-slate-300 uppercase bg-slate-900/90 sticky top-0 z-10 shadow-md">
                   <tr>
+                    <th className="px-3 py-4 font-semibold w-12 text-center whitespace-nowrap text-slate-400">
+                      #
+                    </th>
                     <th className="px-4 py-4 font-semibold w-16 whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('numero')}>
                       No. <SortIcon columnKey="numero" />
                     </th>
@@ -268,6 +291,9 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
                     </th>
                     <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('provincia')}>
                       Provincia <SortIcon columnKey="provincia" />
+                    </th>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors text-center" onClick={() => handleSort('estado')}>
+                      Estado <SortIcon columnKey="estado" />
                     </th>
                     {selectedAnios.map((anioVal, idx) => (
                       <React.Fragment key={anioVal}>
@@ -284,65 +310,78 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {sortedData.map((row) => (
-                    <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
-                      <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
-                      <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">{row.regional}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">{row.provincia}</td>
-                      
-                      {selectedAnios.map((anioVal, idx) => {
-                        const currentVal = row.valoresPorAnio[anioVal] || 0;
-                        let growthNode = null;
+                  {sortedData.map((row, index) => {
+                    const isActiva = (row.estado || '').toLowerCase() === 'activa';
+                    return (
+                      <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
+                        <td className="px-3 py-3 text-slate-500 font-mono text-xs text-center">{index + 1}</td>
+                        <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
+                        <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
+                        <td className="px-4 py-3 text-slate-400 text-xs">{row.regional}</td>
+                        <td className="px-4 py-3 text-slate-400 text-xs">{row.provincia}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            isActiva 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          }`}>
+                            {isActiva ? 'Activa' : 'Cerrada'}
+                          </span>
+                        </td>
                         
-                        if (idx > 0) {
-                          const prevAnioVal = selectedAnios[idx - 1];
-                          const prevVal = row.valoresPorAnio[prevAnioVal] || 0;
-                          const growth = calculateGrowth(currentVal, prevVal);
-                          const isPositive = growth > 0;
-                          const isNegative = growth < 0;
+                        {selectedAnios.map((anioVal, idx) => {
+                          const currentVal = row.valoresPorAnio[anioVal] || 0;
+                          let growthNode = null;
                           
-                          let displayGrowth = growth.toFixed(1) + '%';
-                          if (Math.abs(growth) >= 999.5) {
-                            displayGrowth = (growth / 1000).toFixed(1) + 'k%';
+                          if (idx > 0) {
+                            const prevAnioVal = selectedAnios[idx - 1];
+                            const prevVal = row.valoresPorAnio[prevAnioVal] || 0;
+                            const growth = calculateGrowth(currentVal, prevVal);
+                            const isPositive = growth > 0;
+                            const isNegative = growth < 0;
+                            
+                            let displayGrowth = growth.toFixed(1) + '%';
+                            if (Math.abs(growth) >= 999.5) {
+                              displayGrowth = (growth / 1000).toFixed(1) + 'k%';
+                            }
+                            
+                            const tooltipTitle = prevVal < 50 && prevVal > 0
+                              ? `Base muy baja para calcular crecimiento real (${prevAnioVal}: ${prevVal} visitas)` 
+                              : `Crecimiento respecto al mismo mes del año anterior`;
+
+                            growthNode = (
+                              <td className="px-4 py-3 text-center bg-emerald-900/10 border-l border-emerald-500/10">
+                                {prevVal === 0 && currentVal === 0 ? (
+                                  <span className="text-[var(--muted)] text-xs font-medium">-</span>
+                                ) : (
+                                  <div 
+                                    title={tooltipTitle}
+                                    className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-xs font-bold w-full max-w-[80px] mx-auto transition-colors ${
+                                    isPositive ? 'text-emerald-400 bg-emerald-400/10' :
+                                    isNegative ? 'text-rose-400 bg-rose-400/10' :
+                                    'text-slate-400 bg-slate-400/10'
+                                  } ${prevVal < 50 && prevVal > 0 ? 'cursor-help border border-dashed border-emerald-500/30 hover:bg-emerald-400/20' : ''}`}>
+                                    {isPositive && <TrendingUp size={12} />}
+                                    {isNegative && <TrendingDown size={12} />}
+                                    {isPositive ? '+' : ''}{displayGrowth}
+                                  </div>
+                                )}
+                              </td>
+                            );
                           }
                           
-                          const tooltipTitle = prevVal < 50 && prevVal > 0
-                            ? `Base muy baja para calcular crecimiento real (${prevAnioVal}: ${prevVal} visitas)` 
-                            : `Crecimiento respecto al mismo mes del año anterior`;
-
-                          growthNode = (
-                            <td className="px-4 py-3 text-center bg-emerald-900/10 border-l border-emerald-500/10">
-                              {prevVal === 0 && currentVal === 0 ? (
-                                <span className="text-[var(--muted)] text-xs font-medium">-</span>
-                              ) : (
-                                <div 
-                                  title={tooltipTitle}
-                                  className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-xs font-bold w-full max-w-[80px] mx-auto transition-colors ${
-                                  isPositive ? 'text-emerald-400 bg-emerald-400/10' :
-                                  isNegative ? 'text-rose-400 bg-rose-400/10' :
-                                  'text-slate-400 bg-slate-400/10'
-                                } ${prevVal < 50 && prevVal > 0 ? 'cursor-help border border-dashed border-emerald-500/30 hover:bg-emerald-400/20' : ''}`}>
-                                  {isPositive && <TrendingUp size={12} />}
-                                  {isNegative && <TrendingDown size={12} />}
-                                  {isPositive ? '+' : ''}{displayGrowth}
-                                </div>
-                              )}
-                            </td>
+                          return (
+                            <React.Fragment key={anioVal}>
+                              <td className="px-4 py-3 text-right font-mono text-slate-300 border-l border-white/5">
+                                {currentVal.toLocaleString()}
+                              </td>
+                              {growthNode}
+                            </React.Fragment>
                           );
-                        }
-                        
-                        return (
-                          <React.Fragment key={anioVal}>
-                            <td className="px-4 py-3 text-right font-mono text-slate-300 border-l border-white/5">
-                              {currentVal.toLocaleString()}
-                            </td>
-                            {growthNode}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

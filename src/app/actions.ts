@@ -336,16 +336,42 @@ export async function getComparativeGrowthData(filters: DashboardFilters, meses:
       return { success: true, data: [] };
     }
 
-    // fetchAllRows pagina automáticamente de a 1000 filas para superar el límite de PostgREST.
-    // Sin esto, seleccionar 4+ meses con ~433 infoplazas genera >1000 filas y el resultado
-    // se trunca silenciosamente, perdiendo hasta el 30% de las infoplazas. (Regla 11: excluir cerradas)
+    // 1. Obtener catálogo de infoplazas activas para asegurar que siempre aparezcan (incluso con 0 visitas)
+    let activeQuery = supabaseAdmin
+      .from('infoplazas')
+      .select('numero, nombre, regional, provincia, estado')
+      .eq('estado', 'Activa');
+
+    if (filters.regional) {
+      activeQuery = activeQuery.eq('regional', filters.regional);
+    }
+    if (filters.provincia) {
+      activeQuery = activeQuery.eq('provincia', filters.provincia);
+    }
+
+    const { data: activeCatalog, error: activeErr } = await activeQuery;
+    if (activeErr) throw activeErr;
+
+    const groupedData: Record<number, any> = {};
+
+    (activeCatalog || []).forEach((ip: any) => {
+      groupedData[ip.numero] = {
+        numero: ip.numero,
+        nombre: ip.nombre,
+        regional: ip.regional,
+        provincia: ip.provincia,
+        estado: ip.estado,
+        valoresPorMes: {}
+      };
+    });
+
+    // 2. Consultar resumen_demografico sin filtrar rígidamente por estado para capturar histórico de cerradas
     const rows = await fetchAllRows<any>((page, pageSize) => {
       let query = supabaseAdmin
         .from('resumen_demografico')
         .select('numero_infoplaza, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
         .eq('anio', anio)
         .in('mes_numero', meses)
-        .eq('infoplazas.estado', 'Activa')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (filters.regional) {
@@ -358,9 +384,7 @@ export async function getComparativeGrowthData(filters: DashboardFilters, meses:
       return query;
     });
 
-    // Agrupar los resultados por infoplaza
-    const groupedData: Record<number, any> = {};
-
+    // 3. Poblar datos por infoplaza
     rows.forEach((row: any) => {
       const num = row.numero_infoplaza;
       if (!groupedData[num]) {
@@ -369,14 +393,26 @@ export async function getComparativeGrowthData(filters: DashboardFilters, meses:
           nombre: row.infoplazas.nombre,
           regional: row.infoplazas.regional,
           provincia: row.infoplazas.provincia,
+          estado: row.infoplazas.estado,
           valoresPorMes: {}
         };
       }
       groupedData[num].valoresPorMes[row.mes_numero] = row.total;
     });
 
-    // Convertir el objeto agrupado a un arreglo y ordenarlo por número de infoplaza
-    const result = Object.values(groupedData).sort((a: any, b: any) => a.numero - b.numero);
+    // 4. Regla RN-016: Activas se muestran siempre. Cerradas solo si tienen actividad > 0 en los meses seleccionados.
+    const result = Object.values(groupedData)
+      .filter((item: any) => {
+        const isActiva = (item.estado || '').toLowerCase() === 'activa';
+        if (isActiva) return true;
+
+        const totalPeriodo = Object.values(item.valoresPorMes || {}).reduce(
+          (acc: number, val: any) => acc + (Number(val) || 0),
+          0
+        );
+        return totalPeriodo > 0;
+      })
+      .sort((a: any, b: any) => a.numero - b.numero);
 
     return { success: true, data: result };
   } catch (error: any) {
@@ -392,16 +428,42 @@ export async function getYoYGrowthData(filters: DashboardFilters, mes: number, a
       return { success: true, data: [] };
     }
 
-    // fetchAllRows pagina automáticamente de a 1000 filas para superar el límite de PostgREST.
-    // Con 3+ años seleccionados (e.g. 2024+2025+2026), las filas DB superan 1000 y se truncan.
-    // (Regla 11: excluir cerradas definitivamente)
+    // 1. Catálogo de activas
+    let activeQuery = supabaseAdmin
+      .from('infoplazas')
+      .select('numero, nombre, regional, provincia, estado')
+      .eq('estado', 'Activa');
+
+    if (filters.regional) {
+      activeQuery = activeQuery.eq('regional', filters.regional);
+    }
+    if (filters.provincia) {
+      activeQuery = activeQuery.eq('provincia', filters.provincia);
+    }
+
+    const { data: activeCatalog, error: activeErr } = await activeQuery;
+    if (activeErr) throw activeErr;
+
+    const groupedData: Record<number, any> = {};
+
+    (activeCatalog || []).forEach((ip: any) => {
+      groupedData[ip.numero] = {
+        numero: ip.numero,
+        nombre: ip.nombre,
+        regional: ip.regional,
+        provincia: ip.provincia,
+        estado: ip.estado,
+        valoresPorAnio: {}
+      };
+    });
+
+    // 2. Filas de resumen_demografico
     const rows = await fetchAllRows<any>((page, pageSize) => {
       let query = supabaseAdmin
         .from('resumen_demografico')
         .select('numero_infoplaza, anio, total, infoplazas!inner(nombre, regional, provincia, estado)')
         .eq('mes_numero', mes)
         .in('anio', anios)
-        .eq('infoplazas.estado', 'Activa')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (filters.regional) {
@@ -414,9 +476,7 @@ export async function getYoYGrowthData(filters: DashboardFilters, mes: number, a
       return query;
     });
 
-    // Agrupar los resultados por infoplaza
-    const groupedData: Record<number, any> = {};
-
+    // 3. Poblar datos
     rows.forEach((row: any) => {
       const num = row.numero_infoplaza;
       if (!groupedData[num]) {
@@ -425,14 +485,26 @@ export async function getYoYGrowthData(filters: DashboardFilters, mes: number, a
           nombre: row.infoplazas.nombre,
           regional: row.infoplazas.regional,
           provincia: row.infoplazas.provincia,
+          estado: row.infoplazas.estado,
           valoresPorAnio: {}
         };
       }
       groupedData[num].valoresPorAnio[row.anio] = row.total;
     });
 
-    // Convertir el objeto agrupado a un arreglo y ordenarlo por número de infoplaza
-    const result = Object.values(groupedData).sort((a: any, b: any) => a.numero - b.numero);
+    // 4. Regla RN-016: Activas siempre, cerradas solo con actividad > 0 en los años seleccionados
+    const result = Object.values(groupedData)
+      .filter((item: any) => {
+        const isActiva = (item.estado || '').toLowerCase() === 'activa';
+        if (isActiva) return true;
+
+        const totalPeriodo = Object.values(item.valoresPorAnio || {}).reduce(
+          (acc: number, val: any) => acc + (Number(val) || 0),
+          0
+        );
+        return totalPeriodo > 0;
+      })
+      .sort((a: any, b: any) => a.numero - b.numero);
 
     return { success: true, data: result };
   } catch (error: any) {
@@ -448,18 +520,41 @@ export async function getCuatrimestreData(filters: DashboardFilters, anios: numb
       return { success: true, data: [] };
     }
 
-    // fetchAllRows pagina automáticamente de a 1000 filas para superar el límite de PostgREST.
-    // Esta función descarga TODOS los meses del año (sin filtro de mes) para luego agrupar por
-    // cuatrimestre. Con 433 infoplazas x 12 meses x N años, el volumen escala rápido:
-    //   1 año  → ~5,196 filas  |  2 años → ~10,392  |  3 años → ~15,588
-    // Sin paginación, el resultado se truncaba silenciosamente, perdiendo hasta el 83% de las
-    // infoplazas en el modo histórico de 3 años. (Regla 11: excluir cerradas definitivamente)
+    // 1. Catálogo de activas
+    let activeQuery = supabaseAdmin
+      .from('infoplazas')
+      .select('numero, nombre, regional, provincia, estado')
+      .eq('estado', 'Activa');
+
+    if (filters.regional) {
+      activeQuery = activeQuery.eq('regional', filters.regional);
+    }
+    if (filters.provincia) {
+      activeQuery = activeQuery.eq('provincia', filters.provincia);
+    }
+
+    const { data: activeCatalog, error: activeErr } = await activeQuery;
+    if (activeErr) throw activeErr;
+
+    const groupedData: Record<number, any> = {};
+
+    (activeCatalog || []).forEach((ip: any) => {
+      groupedData[ip.numero] = {
+        numero: ip.numero,
+        nombre: ip.nombre,
+        regional: ip.regional,
+        provincia: ip.provincia,
+        estado: ip.estado,
+        valores: {}
+      };
+    });
+
+    // 2. Filas de resumen_demografico
     const rows = await fetchAllRows<any>((page, pageSize) => {
       let query = supabaseAdmin
         .from('resumen_demografico')
         .select('numero_infoplaza, anio, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
         .in('anio', anios)
-        .eq('infoplazas.estado', 'Activa')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (filters.regional) {
@@ -472,9 +567,7 @@ export async function getCuatrimestreData(filters: DashboardFilters, anios: numb
       return query;
     });
 
-    // Agrupar los resultados por infoplaza
-    const groupedData: Record<number, any> = {};
-
+    // 3. Poblar datos agregados por cuatrimestre
     rows.forEach((row: any) => {
       const num = row.numero_infoplaza;
       if (!groupedData[num]) {
@@ -483,13 +576,13 @@ export async function getCuatrimestreData(filters: DashboardFilters, anios: numb
           nombre: row.infoplazas.nombre,
           regional: row.infoplazas.regional,
           provincia: row.infoplazas.provincia,
-          valores: {} // anio -> cuatrimestre -> total
+          estado: row.infoplazas.estado,
+          valores: {}
         };
       }
 
       const anio = row.anio;
       const mes = row.mes_numero;
-      // Cuatrimestre: 1-4 = C1, 5-8 = C2, 9-12 = C3
       const cuatrimestre = mes <= 4 ? 1 : mes <= 8 ? 2 : 3;
 
       if (!groupedData[num].valores[anio]) {
@@ -498,8 +591,21 @@ export async function getCuatrimestreData(filters: DashboardFilters, anios: numb
       groupedData[num].valores[anio][cuatrimestre] += row.total;
     });
 
-    // Convertir el objeto agrupado a un arreglo y ordenarlo por número de infoplaza
-    const result = Object.values(groupedData).sort((a: any, b: any) => a.numero - b.numero);
+    // 4. Regla RN-016: Activas siempre, cerradas solo con actividad > 0 en los cuatrimestres de los años seleccionados
+    const result = Object.values(groupedData)
+      .filter((item: any) => {
+        const isActiva = (item.estado || '').toLowerCase() === 'activa';
+        if (isActiva) return true;
+
+        let totalPeriodo = 0;
+        Object.values(item.valores || {}).forEach((cuatrimestres: any) => {
+          Object.values(cuatrimestres || {}).forEach((val: any) => {
+            totalPeriodo += Number(val) || 0;
+          });
+        });
+        return totalPeriodo > 0;
+      })
+      .sort((a: any, b: any) => a.numero - b.numero);
 
     return { success: true, data: result };
   } catch (error: any) {
