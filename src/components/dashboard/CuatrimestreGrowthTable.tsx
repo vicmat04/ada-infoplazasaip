@@ -362,7 +362,7 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
                     {mode === 'intra' ? intraCuatrimestres.map((cVal, idx) => (
                       <React.Fragment key={cVal}>
                         <th className="px-4 py-4 font-semibold text-right border-l border-white/5 cursor-pointer hover:bg-slate-800" onClick={() => handleSort(cVal.toString())}>
-                          C{cVal} <SortIcon columnKey={cVal.toString()} />
+                          Visitas C{cVal} {intraAnio} <SortIcon columnKey={cVal.toString()} />
                         </th>
                         {idx > 0 && (
                           <th className="px-4 py-4 font-semibold text-center bg-purple-900/20 border-l border-purple-500/20 w-32 text-purple-200 cursor-pointer hover:bg-purple-900/40" onClick={() => handleSort(`crec_${intraCuatrimestres[idx-1]}_${cVal}`)}>
@@ -373,7 +373,7 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
                     )) : interAnios.map((anioVal, idx) => (
                       <React.Fragment key={anioVal}>
                         <th className="px-4 py-4 font-semibold text-right border-l border-white/5 cursor-pointer hover:bg-slate-800" onClick={() => handleSort(anioVal.toString())}>
-                          C{interCuatrimestre} {anioVal} <SortIcon columnKey={anioVal.toString()} />
+                          Visitas C{interCuatrimestre} {anioVal} <SortIcon columnKey={anioVal.toString()} />
                         </th>
                         {idx > 0 && (
                           <th className="px-4 py-4 font-semibold text-center bg-purple-900/20 border-l border-purple-500/20 w-32 text-purple-200 cursor-pointer hover:bg-purple-900/40" onClick={() => handleSort(`crec_${interAnios[idx-1]}_${anioVal}`)}>

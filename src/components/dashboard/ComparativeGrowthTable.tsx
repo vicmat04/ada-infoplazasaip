@@ -277,7 +277,7 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
                     {selectedMeses.map((mesVal, idx) => (
                       <React.Fragment key={mesVal}>
                         <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort(mesVal.toString())}>
-                          {MESES.find(m => m.value === mesVal)?.label} <SortIcon columnKey={mesVal.toString()} />
+                          Visitas {MESES.find(m => m.value === mesVal)?.label?.toLowerCase()} {filters.anio || new Date().getFullYear()} <SortIcon columnKey={mesVal.toString()} />
                         </th>
                         {idx > 0 && (
                           <th className="px-4 py-4 font-semibold text-center bg-blue-900/20 border-l border-blue-500/20 w-32 whitespace-nowrap text-blue-200 cursor-pointer hover:bg-blue-900/40 transition-colors" onClick={() => handleSort(`crec_${selectedMeses[idx-1]}_${mesVal}`)}>

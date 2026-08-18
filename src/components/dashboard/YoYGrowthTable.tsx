@@ -272,7 +272,7 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
                     {selectedAnios.map((anioVal, idx) => (
                       <React.Fragment key={anioVal}>
                         <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort(anioVal.toString())}>
-                          {MESES.find(m => m.value === selectedMes)?.label} {anioVal} <SortIcon columnKey={anioVal.toString()} />
+                          Visitas {MESES.find(m => m.value === selectedMes)?.label?.toLowerCase()} {anioVal} <SortIcon columnKey={anioVal.toString()} />
                         </th>
                         {idx > 0 && (
                           <th className="px-4 py-4 font-semibold text-center bg-emerald-900/20 border-l border-emerald-500/20 w-32 whitespace-nowrap text-emerald-200 cursor-pointer hover:bg-emerald-900/40 transition-colors" onClick={() => handleSort(`crec_${selectedAnios[idx-1]}_${anioVal}`)}>
