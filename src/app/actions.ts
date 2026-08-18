@@ -1,6 +1,6 @@
 'use server';
 
-import { getExecutiveDashboardSnapshot, DashboardFilters, supabaseAdmin, getDashboardRawData as getRawData } from '../lib/dashboard/executive-services';
+import { getExecutiveDashboardSnapshot, DashboardFilters, supabaseAdmin, getDashboardRawData as getRawData, fetchAllRows } from '../lib/dashboard/executive-services';
 import { supabase } from '../lib/supabase';
 
 // Server Action para obtener el snapshot de datos con filtros
@@ -331,34 +331,37 @@ export async function getCustomReportData(params: {
 export async function getComparativeGrowthData(filters: DashboardFilters, meses: number[]) {
   try {
     const anio = filters.anio || new Date().getFullYear();
-    
+
     if (!meses || meses.length === 0) {
       return { success: true, data: [] };
     }
 
-    // Usamos el cliente admin para asegurar acceso de solo lectura completo de las tablas
-    let query = supabaseAdmin
-      .from('resumen_demografico')
-      .select('numero_infoplaza, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
-      .eq('anio', anio)
-      .in('mes_numero', meses)
-      .eq('infoplazas.estado', 'Activa'); // Regla 11: Excluir cerradas definitivamente
+    // fetchAllRows pagina automáticamente de a 1000 filas para superar el límite de PostgREST.
+    // Sin esto, seleccionar 4+ meses con ~433 infoplazas genera >1000 filas y el resultado
+    // se trunca silenciosamente, perdiendo hasta el 30% de las infoplazas. (Regla 11: excluir cerradas)
+    const rows = await fetchAllRows<any>((page, pageSize) => {
+      let query = supabaseAdmin
+        .from('resumen_demografico')
+        .select('numero_infoplaza, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
+        .eq('anio', anio)
+        .in('mes_numero', meses)
+        .eq('infoplazas.estado', 'Activa')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    if (filters.regional) {
-      query = query.eq('infoplazas.regional', filters.regional);
-    }
-    if (filters.provincia) {
-      query = query.eq('infoplazas.provincia', filters.provincia);
-    }
+      if (filters.regional) {
+        query = query.eq('infoplazas.regional', filters.regional);
+      }
+      if (filters.provincia) {
+        query = query.eq('infoplazas.provincia', filters.provincia);
+      }
 
-    const { data, error } = await query;
-
-    if (error) throw error;
+      return query;
+    });
 
     // Agrupar los resultados por infoplaza
     const groupedData: Record<number, any> = {};
 
-    (data || []).forEach((row: any) => {
+    rows.forEach((row: any) => {
       const num = row.numero_infoplaza;
       if (!groupedData[num]) {
         groupedData[num] = {
@@ -389,29 +392,32 @@ export async function getYoYGrowthData(filters: DashboardFilters, mes: number, a
       return { success: true, data: [] };
     }
 
-    // Usamos el cliente admin para asegurar acceso de solo lectura completo de las tablas
-    let query = supabaseAdmin
-      .from('resumen_demografico')
-      .select('numero_infoplaza, anio, total, infoplazas!inner(nombre, regional, provincia, estado)')
-      .eq('mes_numero', mes)
-      .in('anio', anios)
-      .eq('infoplazas.estado', 'Activa'); // Regla 11: Excluir cerradas definitivamente
+    // fetchAllRows pagina automáticamente de a 1000 filas para superar el límite de PostgREST.
+    // Con 3+ años seleccionados (e.g. 2024+2025+2026), las filas DB superan 1000 y se truncan.
+    // (Regla 11: excluir cerradas definitivamente)
+    const rows = await fetchAllRows<any>((page, pageSize) => {
+      let query = supabaseAdmin
+        .from('resumen_demografico')
+        .select('numero_infoplaza, anio, total, infoplazas!inner(nombre, regional, provincia, estado)')
+        .eq('mes_numero', mes)
+        .in('anio', anios)
+        .eq('infoplazas.estado', 'Activa')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    if (filters.regional) {
-      query = query.eq('infoplazas.regional', filters.regional);
-    }
-    if (filters.provincia) {
-      query = query.eq('infoplazas.provincia', filters.provincia);
-    }
+      if (filters.regional) {
+        query = query.eq('infoplazas.regional', filters.regional);
+      }
+      if (filters.provincia) {
+        query = query.eq('infoplazas.provincia', filters.provincia);
+      }
 
-    const { data, error } = await query;
-
-    if (error) throw error;
+      return query;
+    });
 
     // Agrupar los resultados por infoplaza
     const groupedData: Record<number, any> = {};
 
-    (data || []).forEach((row: any) => {
+    rows.forEach((row: any) => {
       const num = row.numero_infoplaza;
       if (!groupedData[num]) {
         groupedData[num] = {
@@ -442,26 +448,34 @@ export async function getCuatrimestreData(filters: DashboardFilters, anios: numb
       return { success: true, data: [] };
     }
 
-    let query = supabaseAdmin
-      .from('resumen_demografico')
-      .select('numero_infoplaza, anio, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
-      .in('anio', anios)
-      .eq('infoplazas.estado', 'Activa'); // Regla 11: Excluir cerradas definitivamente
+    // fetchAllRows pagina automáticamente de a 1000 filas para superar el límite de PostgREST.
+    // Esta función descarga TODOS los meses del año (sin filtro de mes) para luego agrupar por
+    // cuatrimestre. Con 433 infoplazas x 12 meses x N años, el volumen escala rápido:
+    //   1 año  → ~5,196 filas  |  2 años → ~10,392  |  3 años → ~15,588
+    // Sin paginación, el resultado se truncaba silenciosamente, perdiendo hasta el 83% de las
+    // infoplazas en el modo histórico de 3 años. (Regla 11: excluir cerradas definitivamente)
+    const rows = await fetchAllRows<any>((page, pageSize) => {
+      let query = supabaseAdmin
+        .from('resumen_demografico')
+        .select('numero_infoplaza, anio, mes_numero, total, infoplazas!inner(nombre, regional, provincia, estado)')
+        .in('anio', anios)
+        .eq('infoplazas.estado', 'Activa')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    if (filters.regional) {
-      query = query.eq('infoplazas.regional', filters.regional);
-    }
-    if (filters.provincia) {
-      query = query.eq('infoplazas.provincia', filters.provincia);
-    }
+      if (filters.regional) {
+        query = query.eq('infoplazas.regional', filters.regional);
+      }
+      if (filters.provincia) {
+        query = query.eq('infoplazas.provincia', filters.provincia);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
+      return query;
+    });
 
     // Agrupar los resultados por infoplaza
     const groupedData: Record<number, any> = {};
 
-    (data || []).forEach((row: any) => {
+    rows.forEach((row: any) => {
       const num = row.numero_infoplaza;
       if (!groupedData[num]) {
         groupedData[num] = {
@@ -472,7 +486,7 @@ export async function getCuatrimestreData(filters: DashboardFilters, anios: numb
           valores: {} // anio -> cuatrimestre -> total
         };
       }
-      
+
       const anio = row.anio;
       const mes = row.mes_numero;
       // Cuatrimestre: 1-4 = C1, 5-8 = C2, 9-12 = C3

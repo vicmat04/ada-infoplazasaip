@@ -75,7 +75,7 @@ interface ResumenTipoUsuarioGeneroRow {
 }
 
 // Helper genérico para descargar todos los registros paginados en Supabase (evita el límite de 1000 filas de PostgREST)
-async function fetchAllRows<T>(
+export async function fetchAllRows<T>(
   queryBuilderFn: (page: number, pageSize: number) => PromiseLike<{ data: T[] | null; error: unknown }>
 ): Promise<T[]> {
   let allRows: T[] = [];
