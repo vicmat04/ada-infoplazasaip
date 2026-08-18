@@ -58,6 +58,12 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
       } else if (sortConfig.key === 'nombre') {
         aValue = a.nombre;
         bValue = b.nombre;
+      } else if (sortConfig.key === 'regional') {
+        aValue = a.regional;
+        bValue = b.regional;
+      } else if (sortConfig.key === 'provincia') {
+        aValue = a.provincia;
+        bValue = b.provincia;
       } else if (sortConfig.key.startsWith('crec_')) {
         const [, prevKey, currKey] = sortConfig.key.split('_').map(Number);
         
@@ -123,7 +129,12 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
     if (data.length === 0) return;
     
     const exportData = sortedData.map(row => {
-      const obj: any = { 'No.': row.numero, 'Infoplaza': row.nombre };
+      const obj: any = { 
+        'No.': row.numero, 
+        'Infoplaza': row.nombre,
+        'Regional': row.regional,
+        'Provincia': row.provincia,
+      };
       
       if (mode === 'intra') {
         intraCuatrimestres.forEach((cVal, idx) => {
@@ -342,6 +353,12 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
                     <th className="px-4 py-4 font-semibold min-w-[200px] cursor-pointer hover:bg-slate-800" onClick={() => handleSort('nombre')}>
                       Infoplaza <SortIcon columnKey="nombre" />
                     </th>
+                    <th className="px-4 py-4 font-semibold cursor-pointer hover:bg-slate-800" onClick={() => handleSort('regional')}>
+                      Regional <SortIcon columnKey="regional" />
+                    </th>
+                    <th className="px-4 py-4 font-semibold cursor-pointer hover:bg-slate-800" onClick={() => handleSort('provincia')}>
+                      Provincia <SortIcon columnKey="provincia" />
+                    </th>
                     {mode === 'intra' ? intraCuatrimestres.map((cVal, idx) => (
                       <React.Fragment key={cVal}>
                         <th className="px-4 py-4 font-semibold text-right border-l border-white/5 cursor-pointer hover:bg-slate-800" onClick={() => handleSort(cVal.toString())}>
@@ -372,6 +389,8 @@ export default function CuatrimestreGrowthTable({ filters }: { filters: any }) {
                     <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
                       <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
                       <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{row.regional}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{row.provincia}</td>
                       
                       {mode === 'intra' ? intraCuatrimestres.map((cVal, idx) => {
                         const currentVal = row.valores[intraAnio]?.[cVal] || 0;

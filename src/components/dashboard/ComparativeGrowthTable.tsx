@@ -55,6 +55,12 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
       } else if (sortConfig.key === 'nombre') {
         aValue = a.nombre;
         bValue = b.nombre;
+      } else if (sortConfig.key === 'regional') {
+        aValue = a.regional;
+        bValue = b.regional;
+      } else if (sortConfig.key === 'provincia') {
+        aValue = a.provincia;
+        bValue = b.provincia;
       } else if (sortConfig.key.startsWith('crec_')) {
         const [, prevMes, currMes] = sortConfig.key.split('_').map(Number);
         aValue = calculateGrowth(a.valoresPorMes[currMes] || 0, a.valoresPorMes[prevMes] || 0);
@@ -133,6 +139,8 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
       const obj: any = {
         'No.': row.numero,
         'Infoplaza': row.nombre,
+        'Regional': row.regional,
+        'Provincia': row.provincia,
       };
       
       selectedMeses.forEach((mesVal, idx) => {
@@ -260,6 +268,12 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
                     <th className="px-4 py-4 font-semibold min-w-[200px] whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('nombre')}>
                       Infoplaza <SortIcon columnKey="nombre" />
                     </th>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('regional')}>
+                      Regional <SortIcon columnKey="regional" />
+                    </th>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('provincia')}>
+                      Provincia <SortIcon columnKey="provincia" />
+                    </th>
                     {selectedMeses.map((mesVal, idx) => (
                       <React.Fragment key={mesVal}>
                         <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort(mesVal.toString())}>
@@ -279,6 +293,8 @@ export default function ComparativeGrowthTable({ filters }: { filters: any }) {
                     <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
                       <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
                       <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{row.regional}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{row.provincia}</td>
                       
                       {selectedMeses.map((mesVal, idx) => {
                         const currentVal = row.valoresPorMes[mesVal] || 0;

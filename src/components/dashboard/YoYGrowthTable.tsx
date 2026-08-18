@@ -63,6 +63,12 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
       } else if (sortConfig.key === 'nombre') {
         aValue = a.nombre;
         bValue = b.nombre;
+      } else if (sortConfig.key === 'regional') {
+        aValue = a.regional;
+        bValue = b.regional;
+      } else if (sortConfig.key === 'provincia') {
+        aValue = a.provincia;
+        bValue = b.provincia;
       } else if (sortConfig.key.startsWith('crec_')) {
         const [, prevAnio, currAnio] = sortConfig.key.split('_').map(Number);
         aValue = calculateGrowth(a.valoresPorAnio[currAnio] || 0, a.valoresPorAnio[prevAnio] || 0);
@@ -126,6 +132,8 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
       const obj: any = {
         'No.': row.numero,
         'Infoplaza': row.nombre,
+        'Regional': row.regional,
+        'Provincia': row.provincia,
       };
       
       selectedAnios.forEach((anioVal, idx) => {
@@ -255,6 +263,12 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
                     <th className="px-4 py-4 font-semibold min-w-[200px] whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('nombre')}>
                       Infoplaza <SortIcon columnKey="nombre" />
                     </th>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('regional')}>
+                      Regional <SortIcon columnKey="regional" />
+                    </th>
+                    <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('provincia')}>
+                      Provincia <SortIcon columnKey="provincia" />
+                    </th>
                     {selectedAnios.map((anioVal, idx) => (
                       <React.Fragment key={anioVal}>
                         <th className="px-4 py-4 font-semibold text-right border-l border-white/5 whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort(anioVal.toString())}>
@@ -274,6 +288,8 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
                     <tr key={row.numero} className="hover:bg-white/[0.03] transition-colors">
                       <td className="px-4 py-3 text-slate-400 font-mono text-xs">{row.numero}</td>
                       <td className="px-4 py-3 font-medium text-slate-300">{row.nombre}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{row.regional}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{row.provincia}</td>
                       
                       {selectedAnios.map((anioVal, idx) => {
                         const currentVal = row.valoresPorAnio[anioVal] || 0;
