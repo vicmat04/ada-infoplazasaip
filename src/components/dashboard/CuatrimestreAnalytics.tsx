@@ -48,19 +48,25 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
       if (!regMap[reg]) regMap[reg] = { regional: reg, Entregado: 0, Pendiente: 0, 'No Entrega': 0 };
 
       const ctrl = data.control?.find((c: any) => c.infoplaza_numero === ip.numero);
-      const estado = ctrl?.estado || 'Pendiente';
+      const reporteEstado = ctrl?.estado || 'Pendiente';
+      const ipEstado = ip.estado || '';
       
-      list.push({ ...ip, estado });
+      list.push({ ...ip, reporteEstado });
 
-      if (estado.toLowerCase() === 'entregado') {
+      if (reporteEstado.toLowerCase() === 'entregado') {
         entregados++;
         regMap[reg]['Entregado']++;
-      } else if (estado.toLowerCase() === 'no entrega') {
-        noEntrega++;
-        regMap[reg]['No Entrega']++;
+      } else if (reporteEstado.toLowerCase() === 'no entrega') {
+        if (ipEstado.toLowerCase() === 'abierta') {
+          noEntrega++;
+          regMap[reg]['No Entrega']++;
+        }
       } else {
-        pendientes++;
-        regMap[reg]['Pendiente']++;
+        // Asumimos 'Pendiente'
+        if (ipEstado.toLowerCase() === 'abierta') {
+          pendientes++;
+          regMap[reg]['Pendiente']++;
+        }
       }
     });
 
@@ -85,11 +91,11 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
                 <p className="text-xs text-slate-400">{ip.regional}</p>
               </div>
               <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                ip.estado.toLowerCase() === 'entregado' ? 'bg-emerald-500/20 text-emerald-400' :
-                ip.estado.toLowerCase() === 'no entrega' ? 'bg-red-500/20 text-red-400' :
+                ip.reporteEstado.toLowerCase() === 'entregado' ? 'bg-emerald-500/20 text-emerald-400' :
+                ip.reporteEstado.toLowerCase() === 'no entrega' ? 'bg-red-500/20 text-red-400' :
                 'bg-yellow-500/20 text-yellow-400'
               }`}>
-                {ip.estado.toUpperCase()}
+                {ip.reporteEstado.toUpperCase()}
               </span>
             </div>
           ))}
