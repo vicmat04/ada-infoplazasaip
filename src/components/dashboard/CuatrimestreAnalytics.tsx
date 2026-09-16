@@ -296,9 +296,14 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">{drawerData?.title}</h3>
-              <button onClick={() => setIsDrawerOpen(false)} className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all">
+                  <Download size={14} /> Exportar CSV
+                </button>
+                <button onClick={() => setIsDrawerOpen(false)} className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             <div className="p-4 overflow-y-auto flex-1">
               {drawerData?.content}
