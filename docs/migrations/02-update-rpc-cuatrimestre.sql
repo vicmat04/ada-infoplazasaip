@@ -881,4 +881,6 @@ BEGIN
 
   RETURN v_resultado;
 END;
-$$ LANG
+$$ LANGUAGE plpgsql STABLE;
+
+
