@@ -17,6 +17,7 @@ import ComparativeGrowthTable from '../components/dashboard/ComparativeGrowthTab
 import YoYGrowthTable from '../components/dashboard/YoYGrowthTable';
 import CuatrimestreGrowthTable from '../components/dashboard/CuatrimestreGrowthTable';
 import CuatrimestreAnalytics from '../components/dashboard/CuatrimestreAnalytics';
+import CapacitacionesAnalytics from '../components/dashboard/CapacitacionesAnalytics';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { getDashboardData, getInfoplazasCatalog, getAvailablePeriods } from './actions';
 import { 
@@ -390,6 +391,11 @@ export default function Page() {
                   filters={filters} 
                   onFiltersChange={handleFiltersChange}
                 />
+              )}
+
+              {/* VISTA 6: CAPACITACIONES */}
+              {activeTab === 'capacitaciones' && (
+                <CapacitacionesAnalytics filters={filters} />
               )}
 
               {/* VISTA 5: ADMINISTRACION (Hardening & Cargas) */}

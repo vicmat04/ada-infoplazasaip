@@ -17,7 +17,7 @@ export async function getCuatrimestralData(filters: DashboardFilters, anio: numb
     if (ipErr) throw ipErr;
     
     const infoplazaNumeros = infoplazas.map(ip => ip.numero);
-    if (infoplazaNumeros.length === 0) return { success: true, data: { capacitaciones: [], actividades: [], servicios: [], control: [] } };
+    if (infoplazaNumeros.length === 0) return { success: true, data: { infoplazas: infoplazas || [], capacitaciones: [], actividades: [], servicios: [], control: [] } };
 
     // 2. Control de entrega
     const { data: control, error: ctrlErr } = await supabaseAdmin
@@ -58,6 +58,7 @@ export async function getCuatrimestralData(filters: DashboardFilters, anio: numb
     return { 
       success: true, 
       data: {
+        infoplazas: infoplazas || [],
         control: control || [],
         capacitaciones: capacitaciones || [],
         actividades: actividades || [],
@@ -69,3 +70,4 @@ export async function getCuatrimestralData(filters: DashboardFilters, anio: numb
     return { success: false, error: error.message || 'Error al obtener datos cuatrimestrales' };
   }
 }
+

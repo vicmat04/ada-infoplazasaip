@@ -8,6 +8,7 @@ import {
   Users, 
   RefreshCw, 
   HelpCircle, 
+  BookOpen, 
   ChevronLeft, 
   ChevronRight, 
   ShieldCheck,
@@ -40,6 +41,7 @@ export default function Sidebar({
     { id: 'visitantes', label: 'Visitantes', icon: Users },
     { id: 'sincronizacion', label: 'Sincronización', icon: RefreshCw },
     { id: 'reportes', label: 'Reportes', icon: FileText },
+    { id: 'capacitaciones', label: 'Capacitaciones y Act.', icon: BookOpen },
     ...(isDev ? [
       { id: 'administracion', label: 'Administración', icon: Settings },
     ] : []),
@@ -131,3 +133,5 @@ export default function Sidebar({
     </aside>
   );
 }
+
+
