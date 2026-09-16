@@ -50,6 +50,12 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
       const ctrl = data.control?.find((c: any) => c.infoplaza_numero === ip.numero);
       const reporteEstado = ctrl?.estado || 'Pendiente';
       const ipEstado = ip.estado || '';
+      const isActiva = ipEstado.toLowerCase() === 'activa' || ipEstado.toLowerCase() === 'abierta';
+      
+      // Si la infoplaza está cerrada y NO entregó reporte, no la contamos ni mostramos
+      if (!isActiva && reporteEstado.toLowerCase() !== 'entregado') {
+        return;
+      }
       
       list.push({ ...ip, reporteEstado });
 
@@ -57,16 +63,11 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
         entregados++;
         regMap[reg]['Entregado']++;
       } else if (reporteEstado.toLowerCase() === 'no entrega') {
-        if (ipEstado.toLowerCase() === 'abierta') {
-          noEntrega++;
-          regMap[reg]['No Entrega']++;
-        }
+        noEntrega++;
+        regMap[reg]['No Entrega']++;
       } else {
-        // Asumimos 'Pendiente'
-        if (ipEstado.toLowerCase() === 'abierta') {
-          pendientes++;
-          regMap[reg]['Pendiente']++;
-        }
+        pendientes++;
+        regMap[reg]['Pendiente']++;
       }
     });
 
