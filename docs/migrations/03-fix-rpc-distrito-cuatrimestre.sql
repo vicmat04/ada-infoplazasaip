@@ -3,7 +3,7 @@ CREATE OR REPLACE FUNCTION ipa_get_dashboard_snapshot(
   p_mes text,
   p_regional text,
   p_provincia text,
-  p_distrito text DEFAULT '',
+  p_distrito text,
   p_infoplaza int, p_cuatrimestre int DEFAULT 0
 )
 RETURNS json AS $$
@@ -911,6 +911,7 @@ BEGIN
   RETURN v_resultado;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
 
 
 
