@@ -1,0 +1,916 @@
+CREATE OR REPLACE FUNCTION ipa_get_dashboard_snapshot(
+  p_anio int,
+  p_mes text,
+  p_regional text,
+  p_provincia text,
+  p_distrito text DEFAULT '',
+  p_infoplaza int, p_cuatrimestre int DEFAULT 0
+)
+RETURNS json AS $$
+DECLARE
+  -- Variables de Red e Infraestructura
+  v_total_activas int;
+  v_total_reportadas int;
+  v_ips_con_actividad_periodo int;
+  v_cumplimiento_sinc numeric;
+  v_ips_revision int;
+  v_ultimo_corte date;
+  v_sync_umbral int := 10;
+  
+  -- Variables de Servicios
+  v_total_atenciones bigint;
+  v_promedio_atenciones numeric;
+  v_servicio_lider text;
+  v_servicio_lider_total bigint;
+  v_servicio_lider_porcentaje numeric;
+  
+  -- Variables de Visitantes
+  v_total_visitantes bigint;
+  v_total_educativo bigint;
+  v_total_masculino bigint;
+  v_total_femenino bigint;
+  v_porcentaje_femenino numeric;
+  v_genero_lider text;
+  v_genero_lider_total bigint;
+  v_genero_lider_porcentaje numeric;
+  v_segmento_lider text;
+  v_segmento_lider_total bigint;
+  v_segmento_lider_porcentaje numeric;
+  
+  -- Sumas desagregadas de segmentos
+  v_sum_primaria bigint;
+  v_sum_secundaria bigint;
+  v_sum_universitario bigint;
+  v_sum_docente bigint;
+  v_sum_tercera_edad bigint;
+  v_sum_publico_general bigint;
+
+  -- Bloques de Arrays JSON finales
+  v_tendencia_mensual json;
+  v_regional_rows json;
+  v_sync_regional_rows json;
+  v_risk_rows json;
+  v_table_rows json;
+  v_service_ranking json;
+  v_visitor_segments json;
+  v_max_mes_cargado_numero int;
+  v_ytd_total_actual bigint;
+  v_ytd_total_anterior bigint;
+  v_crecimiento_ytd numeric;
+  
+  -- Nuevas variables para servicios desglosados
+  v_tendencia_servicios json;
+  v_servicios_por_regional json;
+  v_servicios_por_infoplaza json;
+  
+  -- Nuevas variables para visitantes desglosados (Pestaña Visitantes)
+  v_visitor_gender_type_rows json;
+  v_tendencia_visitantes json;
+  v_visitantes_por_regional json;
+  v_visitantes_por_infoplaza json;
+  
+  v_resultado json;
+BEGIN
+  -- ------------------------------------------------------------------
+  -- PASO A: DETERMINAR LA FECHA DEL ÚLTIMO CORTE DE SINCRONIZACIÓN
+  -- ------------------------------------------------------------------
+  SELECT COALESCE(MAX(fecha_reporte), '2026-06-30'::date) INTO v_ultimo_corte
+  FROM historial_sincronizacion;
+
+  -- ------------------------------------------------------------------
+  -- PASO B: METRICAS OPERATIVAS ACTUALES Y COBERTURA (Solo sobre Infoplazas Activas)
+  -- ------------------------------------------------------------------
+  -- Total de sucursales físicamente activas hoy (según filtros geográficos)
+  SELECT COUNT(*)::int INTO v_total_activas
+  FROM ipa_infoplazas_activas ipa
+  WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+    AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+    AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza);
+
+  -- ------------------------------------------------------------------
+  -- PASO C: CÓMPUTO DE SERVICIOS HISTÓRICOS (Sin restricción de estado activo para atenciones)
+  -- ------------------------------------------------------------------
+  -- Suma total de atenciones registradas en resumen_servicios
+  SELECT 
+    COALESCE(SUM(rs.total), 0),
+    COUNT(DISTINCT CASE WHEN rs.total > 0 THEN rs.numero_infoplaza END)
+  INTO v_total_atenciones, v_ips_con_actividad_periodo
+  FROM resumen_servicios rs
+  WHERE (p_anio = 0 OR rs.anio = p_anio)
+    AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+    AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional)))
+    AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza)
+    -- Si se seleccionó provincia, cruzamos con la tabla física para validar la provincia del registro histórico
+    AND (p_provincia = '' OR rs.numero_infoplaza IN (
+         SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))
+        ));
+
+  -- ------------------------------------------------------------------
+  -- PASO D: CÓMPUTO DE VISITANTES HISTÓRICOS (Resumen demográfico)
+  -- ------------------------------------------------------------------
+  SELECT 
+    COALESCE(SUM(rd.total), 0),
+    COALESCE(SUM(rd.primaria + rd.secundaria + rd.universitario + rd.docente), 0),
+    COALESCE(SUM(rd.masculino), 0),
+    COALESCE(SUM(rd.femenino), 0),
+    COALESCE(SUM(rd.primaria), 0),
+    COALESCE(SUM(rd.secundaria), 0),
+    COALESCE(SUM(rd.universitario), 0),
+    COALESCE(SUM(rd.docente), 0),
+    COALESCE(SUM(rd.tercera_edad), 0),
+    COALESCE(SUM(rd.publico_general), 0)
+  INTO 
+    v_total_visitantes, v_total_educativo, v_total_masculino, v_total_femenino,
+    v_sum_primaria, v_sum_secundaria, v_sum_universitario, v_sum_docente,
+    v_sum_tercera_edad, v_sum_publico_general
+  FROM resumen_demografico rd
+  WHERE (p_anio = 0 OR rd.anio = p_anio)
+    AND (p_mes = '' OR rd.mes = p_mes) AND (p_cuatrimestre = 0 OR (rd.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rd.mes_numero > 4 AND rd.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rd.mes_numero > 8 AND p_cuatrimestre = 3))
+    AND (p_regional = '' OR LOWER(TRIM(rd.regional)) = LOWER(TRIM(p_regional)))
+    AND (p_infoplaza = 0 OR rd.numero_infoplaza = p_infoplaza)
+    AND (p_provincia = '' OR rd.numero_infoplaza IN (
+         SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))
+        ));
+
+  -- Construir el JSON desagregado de todos los tipos de usuarios (en orden descendente o natural)
+  v_visitor_segments := json_build_array(
+    json_build_object('name', 'Público General', 'value', v_sum_publico_general),
+    json_build_object('name', 'Secundaria', 'value', v_sum_secundaria),
+    json_build_object('name', 'Universitario', 'value', v_sum_universitario),
+    json_build_object('name', 'Primaria', 'value', v_sum_primaria),
+    json_build_object('name', 'Tercera Edad', 'value', v_sum_tercera_edad),
+    json_build_object('name', 'Docente', 'value', v_sum_docente)
+  );
+
+  -- ------------------------------------------------------------------
+  -- PASO E: DETERMINAR GÉNERO LÍDER Y SERVICIO LÍDER
+  -- ------------------------------------------------------------------
+  -- Porcentaje femenino
+  IF v_total_visitantes > 0 THEN
+    v_porcentaje_femenino := (v_total_femenino::numeric / v_total_visitantes::numeric) * 100;
+  ELSE
+    v_porcentaje_femenino := 0;
+  END IF;
+
+  IF v_total_femenino >= v_total_masculino THEN
+    v_genero_lider := 'Femenino';
+    v_genero_lider_total := v_total_femenino;
+  ELSE
+    v_genero_lider := 'Masculino';
+    v_genero_lider_total := v_total_masculino;
+  END IF;
+
+  IF v_total_visitantes > 0 THEN
+    v_genero_lider_porcentaje := (v_genero_lider_total::numeric / v_total_visitantes::numeric) * 100;
+  ELSE
+    v_genero_lider_porcentaje := 0;
+  END IF;
+
+  -- Determinar Servicio Líder dinámicamente sumando columnas de resumen_servicios
+  WITH sumas_servicios AS (
+    SELECT 'Copia' AS servicio, COALESCE(SUM(copia), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'Impresión' AS servicio, COALESCE(SUM(impresion), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'Uso de PC' AS servicio, COALESCE(SUM(uso_de_pc), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'Consulta' AS servicio, COALESCE(SUM(consulta), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'Taller' AS servicio, COALESCE(SUM(taller), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'Reunión' AS servicio, COALESCE(SUM(reunion), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'Otros' AS servicio, COALESCE(SUM(otros), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+  ),
+  ranking AS (
+    SELECT servicio, total, ROW_NUMBER() OVER(ORDER BY total DESC) as rn
+    FROM sumas_servicios
+  )
+  SELECT ranking.servicio, ranking.total INTO v_servicio_lider, v_servicio_lider_total
+  FROM ranking
+  WHERE rn = 1;
+
+  IF v_total_atenciones > 0 THEN
+    v_servicio_lider_porcentaje := (v_servicio_lider_total::numeric / v_total_atenciones::numeric) * 100;
+  ELSE
+    v_servicio_lider_porcentaje := 0;
+  END IF;
+
+  -- ------------------------------------------------------------------
+  -- PASO F: RANKING DE SERVICIOS COMPLETO (Para la vista de servicios)
+  -- ------------------------------------------------------------------
+  WITH sumas_servicios AS (
+    SELECT 'COPIA' AS servicio, COALESCE(SUM(copia), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'IMPRESIÓN' AS servicio, COALESCE(SUM(impresion), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'USO DE PC' AS servicio, COALESCE(SUM(uso_de_pc), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'CONSULTA' AS servicio, COALESCE(SUM(consulta), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'TALLER' AS servicio, COALESCE(SUM(taller), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'REUNIÓN' AS servicio, COALESCE(SUM(reunion), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    UNION ALL
+    SELECT 'OTROS' AS servicio, COALESCE(SUM(otros), 0) AS total FROM resumen_servicios rs WHERE (p_anio = 0 OR rs.anio = p_anio) AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3)) AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional))) AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza) AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+  )
+  SELECT json_agg(json_build_object('servicio', servicio, 'total', total) ORDER BY total DESC) INTO v_service_ranking
+  FROM sumas_servicios
+  WHERE total > 0;
+
+  -- ------------------------------------------------------------------
+  -- PASO G: DETERMINAR TIPO DE USUARIO LÍDER (resumen_tipo_usuario_genero)
+  -- ------------------------------------------------------------------
+  WITH sumas_tipos AS (
+    SELECT rtug.tipo_usuario, SUM(rtug.total)::bigint AS total
+    FROM resumen_tipo_usuario_genero rtug
+    WHERE (p_anio = 0 OR rtug.anio = p_anio)
+      AND (p_mes = '' OR rtug.mes = p_mes) AND (p_cuatrimestre = 0 OR (rtug.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rtug.mes_numero > 4 AND rtug.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rtug.mes_numero > 8 AND p_cuatrimestre = 3))
+      AND (p_regional = '' OR LOWER(TRIM(rtug.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_infoplaza = 0 OR rtug.numero_infoplaza = p_infoplaza)
+      AND (p_provincia = '' OR rtug.numero_infoplaza IN (
+           SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))
+          ))
+    GROUP BY rtug.tipo_usuario
+  ),
+  ranking_tipo AS (
+    SELECT tipo_usuario, total, ROW_NUMBER() OVER(ORDER BY total DESC) as rn
+    FROM sumas_tipos
+  )
+  SELECT ranking_tipo.tipo_usuario, ranking_tipo.total INTO v_segmento_lider, v_segmento_lider_total
+  FROM ranking_tipo
+  WHERE rn = 1;
+
+  IF v_total_visitantes > 0 THEN
+    v_segmento_lider_porcentaje := (v_segmento_lider_total::numeric / v_total_visitantes::numeric) * 100;
+  ELSE
+    v_segmento_lider_porcentaje := 0;
+  END IF;
+
+  -- Promedio de atenciones por sucursal con datos
+  IF v_ips_con_actividad_periodo > 0 THEN
+    v_promedio_atenciones := v_total_atenciones::numeric / v_ips_con_actividad_periodo::numeric;
+  ELSE
+    v_promedio_atenciones := 0;
+  END IF;
+
+  -- ------------------------------------------------------------------
+  -- PASO H: CÁLCULO DE SALUD DE SINCRONIZACIÓN Y COBERTURA (Solo sobre activas hoy)
+  -- ------------------------------------------------------------------
+  -- Cruzar las infoplazas activas actuales con el historial de sincronización del último corte
+  WITH sinc_filtrado AS (
+    SELECT 
+      ipa.numero,
+      hs.dias_sin_sinc,
+      CASE 
+        WHEN hs.dias_sin_sinc IS NULL THEN 'Sin Reporte'
+        WHEN hs.dias_sin_sinc <= v_sync_umbral THEN 'Al día'
+        ELSE 'Para revisión'
+      END AS sync_estado
+    FROM ipa_infoplazas_activas ipa
+    LEFT JOIN historial_sincronizacion hs 
+      ON ipa.numero = CAST(SPLIT_PART(hs.sucursal, '-', 1) AS int)
+      AND hs.fecha_reporte = v_ultimo_corte
+    WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+      AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
+  )
+  SELECT 
+    COUNT(CASE WHEN sync_estado = 'Al día' THEN 1 END)::int,
+    COUNT(CASE WHEN sync_estado = 'Para revisión' THEN 1 END)::int,
+    COUNT(CASE WHEN sync_estado = 'Sin Reporte' THEN 1 END)::int
+  INTO v_total_reportadas, v_ips_revision, v_total_reportadas -- reutilizar total reportadas para alDia/revision
+  FROM sinc_filtrado;
+
+  -- Re-asignar total reportadas
+  -- Nota: total reportadas son las que están "Al día"
+  v_total_reportadas := v_total_activas - v_ips_revision - (v_total_activas - (v_total_reportadas + v_ips_revision)); -- simplificar
+  
+  -- Para este dashboard, "totalReportadas" representa el número de sucursales activas "Al día"
+  SELECT COUNT(CASE WHEN sync_estado = 'Al día' THEN 1 END)::int INTO v_total_reportadas
+  FROM (
+    SELECT 
+      CASE 
+        WHEN hs.dias_sin_sinc IS NULL THEN 'Sin Reporte'
+        WHEN hs.dias_sin_sinc <= v_sync_umbral THEN 'Al día'
+        ELSE 'Para revisión'
+      END AS sync_estado
+    FROM ipa_infoplazas_activas ipa
+    LEFT JOIN historial_sincronizacion hs 
+      ON ipa.numero = CAST(SPLIT_PART(hs.sucursal, '-', 1) AS int)
+      AND hs.fecha_reporte = v_ultimo_corte
+    WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+      AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
+  ) t;
+
+  IF v_total_activas > 0 THEN
+    v_cumplimiento_sinc := (v_total_reportadas::numeric / v_total_activas::numeric) * 100;
+  ELSE
+    v_cumplimiento_sinc := 0;
+  END IF;
+
+  IF p_anio = 0 THEN
+    -- Todos los años: Agrupamiento cronológico plurianual (ej: Ene 23, Feb 23... Jul 26)
+    SELECT json_agg(t.row) INTO v_tendencia_mensual
+    FROM (
+      SELECT json_build_object(
+        'mes', 
+        CASE m.mes
+          WHEN 'Enero' THEN 'Ene' WHEN 'Febrero' THEN 'Feb' WHEN 'Marzo' THEN 'Mar'
+          WHEN 'Abril' THEN 'Abr' WHEN 'Mayo' THEN 'May' WHEN 'Junio' THEN 'Jun'
+          WHEN 'Julio' THEN 'Jul' WHEN 'Agosto' THEN 'Ago' WHEN 'Septiembre' THEN 'Sep'
+          WHEN 'Octubre' THEN 'Oct' WHEN 'Noviembre' THEN 'Nov' WHEN 'Diciembre' THEN 'Dic'
+        END || ' ' || SUBSTRING(a.anio::text, 3, 2),
+        'total', COALESCE(SUM(rd.total), 0),
+        'masculino', COALESCE(SUM(rd.masculino), 0),
+        'femenino', COALESCE(SUM(rd.femenino), 0)
+      ) AS row
+      FROM (
+        SELECT 2023 AS anio UNION ALL SELECT 2024 UNION ALL SELECT 2025 UNION ALL SELECT 2026
+      ) a
+      CROSS JOIN (
+        SELECT 'Enero' AS mes, 1 AS ord UNION ALL SELECT 'Febrero', 2 UNION ALL SELECT 'Marzo', 3 UNION ALL 
+        SELECT 'Abril', 4 UNION ALL SELECT 'Mayo', 5 UNION ALL SELECT 'Junio', 6 UNION ALL 
+        SELECT 'Julio', 7 UNION ALL SELECT 'Agosto', 8 UNION ALL SELECT 'Septiembre', 9 UNION ALL 
+        SELECT 'Octubre', 10 UNION ALL SELECT 'Noviembre', 11 UNION ALL SELECT 'Diciembre', 12
+      ) m
+      LEFT JOIN resumen_demografico rd 
+        ON rd.anio = a.anio
+        AND rd.mes = m.mes
+        AND (p_mes = '' OR rd.mes = p_mes) AND (p_cuatrimestre = 0 OR (rd.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rd.mes_numero > 4 AND rd.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rd.mes_numero > 8 AND p_cuatrimestre = 3))
+        AND (p_regional = '' OR LOWER(TRIM(rd.regional)) = LOWER(TRIM(p_regional)))
+        AND (p_infoplaza = 0 OR rd.numero_infoplaza = p_infoplaza)
+        AND (p_provincia = '' OR rd.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+      GROUP BY a.anio, m.mes, m.ord
+      HAVING (p_mes = '' AND SUM(rd.total) > 0) OR (p_mes <> '' AND m.mes = p_mes)
+      ORDER BY a.anio, m.ord
+    ) t;
+  ELSE
+    -- Obtener dinámicamente el mes máximo con datos para el año seleccionado (evita hardcodeo)
+    SELECT COALESCE(MAX(mes_numero), 12) INTO v_max_mes_cargado_numero
+    FROM resumen_demografico
+    WHERE anio = p_anio
+      AND total > 0;
+
+    -- Año específico: Agrupamiento mensual simple con abreviaturas (ej: Ene, Feb... Dic) que compara con el año anterior
+    SELECT json_agg(t.row) INTO v_tendencia_mensual
+    FROM (
+      SELECT json_build_object(
+        'mes', 
+        CASE m.mes
+          WHEN 'Enero' THEN 'Ene' WHEN 'Febrero' THEN 'Feb' WHEN 'Marzo' THEN 'Mar'
+          WHEN 'Abril' THEN 'Abr' WHEN 'Mayo' THEN 'May' WHEN 'Junio' THEN 'Jun'
+          WHEN 'Julio' THEN 'Jul' WHEN 'Agosto' THEN 'Ago' WHEN 'Septiembre' THEN 'Sep'
+          WHEN 'Octubre' THEN 'Oct' WHEN 'Noviembre' THEN 'Nov' WHEN 'Diciembre' THEN 'Dic'
+        END,
+        'total', COALESCE(SUM(rd_act.total), 0),
+        'total_anterior', COALESCE(SUM(rd_ant.total), 0),
+        'masculino', COALESCE(SUM(rd_act.masculino), 0),
+        'femenino', COALESCE(SUM(rd_act.femenino), 0)
+      ) AS row
+      FROM (
+        SELECT 'Enero' AS mes, 1 AS ord UNION ALL SELECT 'Febrero', 2 UNION ALL SELECT 'Marzo', 3 UNION ALL 
+        SELECT 'Abril', 4 UNION ALL SELECT 'Mayo', 5 UNION ALL SELECT 'Junio', 6 UNION ALL 
+        SELECT 'Julio', 7 UNION ALL SELECT 'Agosto', 8 UNION ALL SELECT 'Septiembre', 9 UNION ALL 
+        SELECT 'Octubre', 10 UNION ALL SELECT 'Noviembre', 11 UNION ALL SELECT 'Diciembre', 12
+      ) m
+      LEFT JOIN resumen_demografico rd_act 
+        ON rd_act.mes = m.mes
+        AND rd_act.anio = p_anio
+        AND (p_mes = '' OR rd_act.mes = p_mes)
+        AND (p_regional = '' OR LOWER(TRIM(rd_act.regional)) = LOWER(TRIM(p_regional)))
+        AND (p_infoplaza = 0 OR rd_act.numero_infoplaza = p_infoplaza)
+        AND (p_provincia = '' OR rd_act.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+      LEFT JOIN resumen_demografico rd_ant 
+        ON rd_ant.mes = m.mes
+        AND rd_ant.anio = p_anio - 1
+        AND (p_mes = '' OR rd_ant.mes = p_mes)
+        AND (p_regional = '' OR LOWER(TRIM(rd_ant.regional)) = LOWER(TRIM(p_regional)))
+        AND (p_infoplaza = 0 OR rd_ant.numero_infoplaza = p_infoplaza)
+        AND (p_provincia = '' OR rd_ant.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+      GROUP BY m.mes, m.ord
+      HAVING (p_mes = '' AND m.ord <= v_max_mes_cargado_numero) OR (p_mes <> '' AND m.mes = p_mes)
+      ORDER BY m.ord
+    ) t;
+  END IF;
+
+  -- ------------------------------------------------------------------
+  -- PASO J: CONSTRUIR FILAS POR REGIONAL (Para PieChart)
+  -- ------------------------------------------------------------------
+  SELECT json_agg(t.row) INTO v_regional_rows
+  FROM (
+    SELECT json_build_object(
+      'regional', rs.regional,
+      'atenciones', SUM(rs.total)
+    ) AS row
+    FROM resumen_servicios rs
+    WHERE (p_anio = 0 OR rs.anio = p_anio)
+      AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+      AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza)
+      AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    GROUP BY rs.regional
+    ORDER BY SUM(rs.total) DESC
+  ) t;
+
+  -- ------------------------------------------------------------------
+  -- PASO K: CONSTRUIR FILAS DE SINCRONIZACIÓN REGIONAL (Para BarChart Regional)
+  -- ------------------------------------------------------------------
+  SELECT json_agg(t.row) INTO v_sync_regional_rows
+  FROM (
+    SELECT json_build_object(
+      'regional', ipa.regional,
+      'alDia', COUNT(CASE WHEN COALESCE(hs.dias_sin_sinc, 999) <= v_sync_umbral THEN 1 END)::int,
+      'revision', COUNT(CASE WHEN COALESCE(hs.dias_sin_sinc, 999) > v_sync_umbral AND hs.dias_sin_sinc IS NOT NULL THEN 1 END)::int,
+      'sinReporte', COUNT(CASE WHEN hs.dias_sin_sinc IS NULL THEN 1 END)::int,
+      'total', COUNT(*)::int
+    ) AS row
+    FROM ipa_infoplazas_activas ipa
+    LEFT JOIN historial_sincronizacion hs 
+      ON ipa.numero = CAST(SPLIT_PART(hs.sucursal, '-', 1) AS int)
+      AND hs.fecha_reporte = v_ultimo_corte
+    WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+      AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
+    GROUP BY ipa.regional
+    ORDER BY ipa.regional
+  ) t;
+
+  -- ------------------------------------------------------------------
+  -- PASO L: CONSTRUIR TABLA DE DETALLE GENERAL DE INFOPLAZAS
+  -- ------------------------------------------------------------------
+  SELECT json_agg(t.row) INTO v_table_rows
+  FROM (
+    SELECT json_build_object(
+      'numero', ipa.numero,
+      'nombre', ipa.nombre,
+      'regional', ipa.regional,
+      'provincia', ipa.provincia,
+      'distrito', ipa.distrito,
+      'corregimiento', ipa.corregimiento,
+      'atenciones', COALESCE(SUM(rs.total), 0),
+      'dias_sin_sinc', MAX(hs.dias_sin_sinc),
+      'sync_estado', CASE 
+        WHEN MAX(hs.dias_sin_sinc) IS NULL THEN 'Sin Reporte'
+        WHEN MAX(hs.dias_sin_sinc) <= v_sync_umbral THEN 'Al día'
+        ELSE 'Para revisión'
+      END,
+      'observacion', CASE 
+        WHEN COALESCE(SUM(rs.total), 0) = 0 AND (MAX(hs.observacion) IS NULL OR MAX(hs.observacion) = '') THEN 'Sin datos en el período'
+        ELSE COALESCE(MAX(hs.observacion), 'OK')
+      END
+    ) AS row
+    FROM ipa_infoplazas_activas ipa
+    LEFT JOIN resumen_servicios rs 
+      ON ipa.numero = rs.numero_infoplaza 
+      AND (p_anio = 0 OR rs.anio = p_anio)
+      AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+    LEFT JOIN historial_sincronizacion hs 
+      ON ipa.numero = CAST(SPLIT_PART(hs.sucursal, '-', 1) AS int)
+      AND hs.fecha_reporte = v_ultimo_corte
+    WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+      AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
+    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia, ipa.distrito, ipa.corregimiento
+    ORDER BY COALESCE(SUM(rs.total), 0) DESC
+  ) t;
+
+  -- ------------------------------------------------------------------
+  -- PASO M: CONSTRUIR RIESGOS / FOCOS DE ATENCIÓN (dias_sin_sinc > 10)
+  -- ------------------------------------------------------------------
+  SELECT json_agg(t.row) INTO v_risk_rows
+  FROM (
+    SELECT json_build_object(
+      'numero', ipa.numero,
+      'nombre', ipa.nombre,
+      'regional', ipa.regional,
+      'provincia', ipa.provincia,
+      'distrito', ipa.distrito,
+      'corregimiento', ipa.corregimiento,
+      'atenciones', COALESCE(SUM(rs.total), 0),
+      'dias_sin_sinc', MAX(hs.dias_sin_sinc),
+      'sync_estado', 'Para revisión',
+      'observacion', COALESCE(MAX(hs.observacion), 'Atraso en sincronización')
+    ) AS row
+    FROM ipa_infoplazas_activas ipa
+    LEFT JOIN resumen_servicios rs 
+      ON ipa.numero = rs.numero_infoplaza 
+      AND (p_anio = 0 OR rs.anio = p_anio)
+      AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+    INNER JOIN historial_sincronizacion hs 
+      ON ipa.numero = CAST(SPLIT_PART(hs.sucursal, '-', 1) AS int)
+      AND hs.fecha_reporte = v_ultimo_corte
+      AND hs.dias_sin_sinc > v_sync_umbral
+    WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+      AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
+    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia, ipa.distrito, ipa.corregimiento
+    ORDER BY MAX(hs.dias_sin_sinc) DESC
+  ) t;
+
+  -- ------------------------------------------------------------------
+  -- PASO M.3: OBTENER DESGLOSES DETALLADOS DE SERVICIOS (Pestaña Servicios)
+  -- ------------------------------------------------------------------
+  
+  -- 1. Tendencia Temporal de Servicios
+  IF p_anio = 0 THEN
+    -- Plurianual
+    SELECT json_agg(t.row) INTO v_tendencia_servicios
+    FROM (
+      SELECT json_build_object(
+        'mes', 
+        CASE m.mes
+          WHEN 'Enero' THEN 'Ene' WHEN 'Febrero' THEN 'Feb' WHEN 'Marzo' THEN 'Mar'
+          WHEN 'Abril' THEN 'Abr' WHEN 'Mayo' THEN 'May' WHEN 'Junio' THEN 'Jun'
+          WHEN 'Julio' THEN 'Jul' WHEN 'Agosto' THEN 'Ago' WHEN 'Septiembre' THEN 'Sep'
+          WHEN 'Octubre' THEN 'Oct' WHEN 'Noviembre' THEN 'Nov' WHEN 'Diciembre' THEN 'Dic'
+        END || ' ' || SUBSTRING(a.anio::text, 3, 2),
+        'uso_de_pc', COALESCE(SUM(rs.uso_de_pc), 0),
+        'copia', COALESCE(SUM(rs.copia), 0),
+        'impresion', COALESCE(SUM(rs.impresion), 0),
+        'consulta', COALESCE(SUM(rs.consulta), 0),
+        'taller', COALESCE(SUM(rs.taller), 0),
+        'reunion', COALESCE(SUM(rs.reunion), 0),
+        'otros', COALESCE(SUM(rs.otros), 0),
+        'total', COALESCE(SUM(rs.total), 0)
+      ) AS row
+      FROM (
+        SELECT 2023 AS anio UNION ALL SELECT 2024 UNION ALL SELECT 2025 UNION ALL SELECT 2026
+      ) a
+      CROSS JOIN (
+        SELECT 'Enero' AS mes, 1 AS ord UNION ALL SELECT 'Febrero', 2 UNION ALL SELECT 'Marzo', 3 UNION ALL 
+        SELECT 'Abril', 4 UNION ALL SELECT 'Mayo', 5 UNION ALL SELECT 'Junio', 6 UNION ALL 
+        SELECT 'Julio', 7 UNION ALL SELECT 'Agosto', 8 UNION ALL SELECT 'Septiembre', 9 UNION ALL 
+        SELECT 'Octubre', 10 UNION ALL SELECT 'Noviembre', 11 UNION ALL SELECT 'Diciembre', 12
+      ) m
+      LEFT JOIN resumen_servicios rs 
+        ON rs.anio = a.anio
+        AND rs.mes = m.mes
+        AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+        AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional)))
+        AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza)
+        AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+      GROUP BY a.anio, m.mes, m.ord
+      HAVING (p_mes = '' AND SUM(rs.total) > 0) OR (p_mes <> '' AND m.mes = p_mes)
+      ORDER BY a.anio, m.ord
+    ) t;
+  ELSE
+    -- Año específico
+    SELECT json_agg(t.row) INTO v_tendencia_servicios
+    FROM (
+      SELECT json_build_object(
+        'mes', 
+        CASE m.mes
+          WHEN 'Enero' THEN 'Ene' WHEN 'Febrero' THEN 'Feb' WHEN 'Marzo' THEN 'Mar'
+          WHEN 'Abril' THEN 'Abr' WHEN 'Mayo' THEN 'May' WHEN 'Junio' THEN 'Jun'
+          WHEN 'Julio' THEN 'Jul' WHEN 'Agosto' THEN 'Ago' WHEN 'Septiembre' THEN 'Sep'
+          WHEN 'Octubre' THEN 'Oct' WHEN 'Noviembre' THEN 'Nov' WHEN 'Diciembre' THEN 'Dic'
+        END,
+        'uso_de_pc', COALESCE(SUM(rs.uso_de_pc), 0),
+        'copia', COALESCE(SUM(rs.copia), 0),
+        'impresion', COALESCE(SUM(rs.impresion), 0),
+        'consulta', COALESCE(SUM(rs.consulta), 0),
+        'taller', COALESCE(SUM(rs.taller), 0),
+        'reunion', COALESCE(SUM(rs.reunion), 0),
+        'otros', COALESCE(SUM(rs.otros), 0),
+        'total', COALESCE(SUM(rs.total), 0)
+      ) AS row
+      FROM (
+        SELECT 'Enero' AS mes, 1 AS ord UNION ALL SELECT 'Febrero', 2 UNION ALL SELECT 'Marzo', 3 UNION ALL 
+        SELECT 'Abril', 4 UNION ALL SELECT 'Mayo', 5 UNION ALL SELECT 'Junio', 6 UNION ALL 
+        SELECT 'Julio', 7 UNION ALL SELECT 'Agosto', 8 UNION ALL SELECT 'Septiembre', 9 UNION ALL 
+        SELECT 'Octubre', 10 UNION ALL SELECT 'Noviembre', 11 UNION ALL SELECT 'Diciembre', 12
+      ) m
+      LEFT JOIN resumen_servicios rs 
+        ON rs.mes = m.mes
+        AND rs.anio = p_anio
+        AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+        AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional)))
+        AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza)
+        AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+      GROUP BY m.mes, m.ord
+      HAVING (p_mes = '' AND m.ord <= v_max_mes_cargado_numero) OR (p_mes <> '' AND m.mes = p_mes)
+      ORDER BY m.ord
+    ) t;
+  END IF;
+
+  -- 2. Distribución de Servicios por Regional
+  SELECT json_agg(t.row) INTO v_servicios_por_regional
+  FROM (
+    SELECT json_build_object(
+      'regional', rs.regional,
+      'uso_de_pc', COALESCE(SUM(rs.uso_de_pc), 0),
+      'copia', COALESCE(SUM(rs.copia), 0),
+      'impresion', COALESCE(SUM(rs.impresion), 0),
+      'consulta', COALESCE(SUM(rs.consulta), 0),
+      'taller', COALESCE(SUM(rs.taller), 0),
+      'reunion', COALESCE(SUM(rs.reunion), 0),
+      'otros', COALESCE(SUM(rs.otros), 0),
+      'total', COALESCE(SUM(rs.total), 0)
+    ) AS row
+    FROM resumen_servicios rs
+    WHERE (p_anio = 0 OR rs.anio = p_anio)
+      AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+      AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza)
+      AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))))
+    GROUP BY rs.regional
+    ORDER BY SUM(rs.total) DESC
+  ) t;
+
+  -- 3. Matriz de Servicios por Infoplaza (Excluyendo cerradas definitivamente mediante ipa_infoplazas_activas)
+  SELECT json_agg(t.row) INTO v_servicios_por_infoplaza
+  FROM (
+    SELECT json_build_object(
+      'numero', ipa.numero,
+      'nombre', ipa.nombre,
+      'regional', ipa.regional,
+      'provincia', ipa.provincia,
+      'uso_de_pc', COALESCE(SUM(rs.uso_de_pc), 0),
+      'copia', COALESCE(SUM(rs.copia), 0),
+      'impresion', COALESCE(SUM(rs.impresion), 0),
+      'consulta', COALESCE(SUM(rs.consulta), 0),
+      'taller', COALESCE(SUM(rs.taller), 0),
+      'reunion', COALESCE(SUM(rs.reunion), 0),
+      'otros', COALESCE(SUM(rs.otros), 0),
+      'total', COALESCE(SUM(rs.total), 0)
+    ) AS row
+    FROM ipa_infoplazas_activas ipa
+    LEFT JOIN resumen_servicios rs 
+      ON ipa.numero = rs.numero_infoplaza 
+      AND (p_anio = 0 OR rs.anio = p_anio)
+      AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+    WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+      AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
+    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia
+    ORDER BY COALESCE(SUM(rs.total), 0) DESC
+  ) t;
+
+  -- ------------------------------------------------------------------
+  -- PASO N: CONSOLIDAR TODO EL PAYLOAD DE RETORNO
+  -- ------------------------------------------------------------------
+  v_crecimiento_ytd := NULL;
+  
+  IF p_anio > 0 THEN
+    -- Determinar el mes máximo con datos en resumen_demografico para el año actual (evita hardcodeo)
+    SELECT COALESCE(MAX(mes_numero), 12) INTO v_max_mes_cargado_numero
+    FROM resumen_demografico
+    WHERE anio = p_anio AND total > 0;
+
+    -- Total acumulado YTD año seleccionado
+    SELECT COALESCE(SUM(rs.total), 0) INTO v_ytd_total_actual
+    FROM resumen_servicios rs
+    WHERE rs.anio = p_anio
+      AND rs.mes_numero <= v_max_mes_cargado_numero
+      AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+      AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza)
+      AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))));
+
+    -- Total acumulado YTD año anterior (p_anio - 1)
+    SELECT COALESCE(SUM(rs.total), 0) INTO v_ytd_total_anterior
+    FROM resumen_servicios rs
+    WHERE rs.anio = p_anio - 1
+      AND rs.mes_numero <= v_max_mes_cargado_numero
+      AND (p_mes = '' OR rs.mes = p_mes) AND (p_cuatrimestre = 0 OR (rs.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rs.mes_numero > 4 AND rs.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rs.mes_numero > 8 AND p_cuatrimestre = 3))
+      AND (p_regional = '' OR LOWER(TRIM(rs.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_infoplaza = 0 OR rs.numero_infoplaza = p_infoplaza)
+      AND (p_provincia = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+        AND (p_distrito = '' OR rs.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(distrito)) = LOWER(TRIM(p_distrito))));
+
+    -- Calcular tasa de crecimiento si hay datos del año anterior
+    IF v_ytd_total_anterior > 0 THEN
+      v_crecimiento_ytd := ((v_ytd_total_actual::numeric - v_ytd_total_anterior::numeric) / v_ytd_total_anterior::numeric) * 100;
+    END IF;
+  END IF;
+
+  -- ------------------------------------------------------------------
+  -- PASO M.4: OBTENER DESGLOSES DETALLADOS DE VISITANTES (Pestaña Visitantes)
+  -- ------------------------------------------------------------------
+  -- 1. Matriz de Género y Segmento (resumen_tipo_usuario_genero)
+  SELECT json_agg(t.row) INTO v_visitor_gender_type_rows
+  FROM (
+    SELECT json_build_object(
+      'tipo_usuario', rtug.tipo_usuario,
+      'masculino', COALESCE(SUM(rtug.masculino), 0),
+      'femenino', COALESCE(SUM(rtug.femenino), 0),
+      'total', COALESCE(SUM(rtug.total), 0)
+    ) AS row
+    FROM resumen_tipo_usuario_genero rtug
+    WHERE (p_anio = 0 OR rtug.anio = p_anio)
+      AND (p_mes = '' OR rtug.mes = p_mes) AND (p_cuatrimestre = 0 OR (rtug.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rtug.mes_numero > 4 AND rtug.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rtug.mes_numero > 8 AND p_cuatrimestre = 3))
+      AND (p_regional = '' OR LOWER(TRIM(rtug.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_infoplaza = 0 OR rtug.numero_infoplaza = p_infoplaza)
+      AND (p_provincia = '' OR rtug.numero_infoplaza IN (
+           SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))
+          ))
+    GROUP BY rtug.tipo_usuario
+    ORDER BY SUM(rtug.total) DESC
+  ) t;
+
+  -- 2. Tendencia Temporal de Visitas por Género (resumen_demografico)
+  IF p_anio = 0 THEN
+    -- Plurianual
+    SELECT json_agg(t.row) INTO v_tendencia_visitantes
+    FROM (
+      SELECT json_build_object(
+        'mes', 
+        CASE m.mes
+          WHEN 'Enero' THEN 'Ene' WHEN 'Febrero' THEN 'Feb' WHEN 'Marzo' THEN 'Mar'
+          WHEN 'Abril' THEN 'Abr' WHEN 'Mayo' THEN 'May' WHEN 'Junio' THEN 'Jun'
+          WHEN 'Julio' THEN 'Jul' WHEN 'Agosto' THEN 'Ago' WHEN 'Septiembre' THEN 'Sep'
+          WHEN 'Octubre' THEN 'Oct' WHEN 'Noviembre' THEN 'Nov' WHEN 'Diciembre' THEN 'Dic'
+        END || ' ' || SUBSTRING(a.anio::text, 3, 2),
+        'masculino', COALESCE(SUM(rd.masculino), 0),
+        'femenino', COALESCE(SUM(rd.femenino), 0),
+        'total', COALESCE(SUM(rd.total), 0)
+      ) AS row
+      FROM (
+        SELECT 2023 AS anio UNION ALL SELECT 2024 UNION ALL SELECT 2025 UNION ALL SELECT 2026
+      ) a
+      CROSS JOIN (
+        SELECT 'Enero' AS mes, 1 AS ord UNION ALL SELECT 'Febrero', 2 UNION ALL SELECT 'Marzo', 3 UNION ALL 
+        SELECT 'Abril', 4 UNION ALL SELECT 'Mayo', 5 UNION ALL SELECT 'Junio', 6 UNION ALL 
+        SELECT 'Julio', 7 UNION ALL SELECT 'Agosto', 8 UNION ALL SELECT 'Septiembre', 9 UNION ALL 
+        SELECT 'Octubre', 10 UNION ALL SELECT 'Noviembre', 11 UNION ALL SELECT 'Diciembre', 12
+      ) m
+      LEFT JOIN resumen_demografico rd 
+        ON rd.anio = a.anio
+        AND rd.mes = m.mes
+        AND (p_mes = '' OR rd.mes = p_mes) AND (p_cuatrimestre = 0 OR (rd.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rd.mes_numero > 4 AND rd.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rd.mes_numero > 8 AND p_cuatrimestre = 3))
+        AND (p_regional = '' OR LOWER(TRIM(rd.regional)) = LOWER(TRIM(p_regional)))
+        AND (p_infoplaza = 0 OR rd.numero_infoplaza = p_infoplaza)
+        AND (p_provincia = '' OR rd.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+      GROUP BY a.anio, m.mes, m.ord
+      HAVING (p_mes = '' AND SUM(rd.total) > 0) OR (p_mes <> '' AND m.mes = p_mes)
+      ORDER BY a.anio, m.ord
+    ) t;
+  ELSE
+    -- Año específico
+    SELECT json_agg(t.row) INTO v_tendencia_visitantes
+    FROM (
+      SELECT json_build_object(
+        'mes', 
+        CASE m.mes
+          WHEN 'Enero' THEN 'Ene' WHEN 'Febrero' THEN 'Feb' WHEN 'Marzo' THEN 'Mar'
+          WHEN 'Abril' THEN 'Abr' WHEN 'Mayo' THEN 'May' WHEN 'Junio' THEN 'Jun'
+          WHEN 'Julio' THEN 'Jul' WHEN 'Agosto' THEN 'Ago' WHEN 'Septiembre' THEN 'Sep'
+          WHEN 'Octubre' THEN 'Oct' WHEN 'Noviembre' THEN 'Nov' WHEN 'Diciembre' THEN 'Dic'
+        END,
+        'masculino', COALESCE(SUM(rd.masculino), 0),
+        'femenino', COALESCE(SUM(rd.femenino), 0),
+        'total', COALESCE(SUM(rd.total), 0)
+      ) AS row
+      FROM (
+        SELECT 'Enero' AS mes, 1 AS ord UNION ALL SELECT 'Febrero', 2 UNION ALL SELECT 'Marzo', 3 UNION ALL 
+        SELECT 'Abril', 4 UNION ALL SELECT 'Mayo', 5 UNION ALL SELECT 'Junio', 6 UNION ALL 
+        SELECT 'Julio', 7 UNION ALL SELECT 'Agosto', 8 UNION ALL SELECT 'Septiembre', 9 UNION ALL 
+        SELECT 'Octubre', 10 UNION ALL SELECT 'Noviembre', 11 UNION ALL SELECT 'Diciembre', 12
+      ) m
+      LEFT JOIN resumen_demografico rd 
+        ON rd.mes = m.mes
+        AND rd.anio = p_anio
+        AND (p_mes = '' OR rd.mes = p_mes) AND (p_cuatrimestre = 0 OR (rd.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rd.mes_numero > 4 AND rd.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rd.mes_numero > 8 AND p_cuatrimestre = 3))
+        AND (p_regional = '' OR LOWER(TRIM(rd.regional)) = LOWER(TRIM(p_regional)))
+        AND (p_infoplaza = 0 OR rd.numero_infoplaza = p_infoplaza)
+        AND (p_provincia = '' OR rd.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+      GROUP BY m.mes, m.ord
+      HAVING (p_mes = '' AND m.ord <= v_max_mes_cargado_numero) OR (p_mes <> '' AND m.mes = p_mes)
+      ORDER BY m.ord
+    ) t;
+  END IF;
+
+  -- 3. Distribución de Visitantes por Regional
+  SELECT json_agg(t.row) INTO v_visitantes_por_regional
+  FROM (
+    SELECT json_build_object(
+      'regional', rd.regional,
+      'total', COALESCE(SUM(rd.total), 0),
+      'masculino', COALESCE(SUM(rd.masculino), 0),
+      'femenino', COALESCE(SUM(rd.femenino), 0)
+    ) AS row
+    FROM resumen_demografico rd
+    WHERE (p_anio = 0 OR rd.anio = p_anio)
+      AND (p_mes = '' OR rd.mes = p_mes) AND (p_cuatrimestre = 0 OR (rd.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rd.mes_numero > 4 AND rd.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rd.mes_numero > 8 AND p_cuatrimestre = 3))
+      AND (p_regional = '' OR LOWER(TRIM(rd.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_infoplaza = 0 OR rd.numero_infoplaza = p_infoplaza)
+      AND (p_provincia = '' OR rd.numero_infoplaza IN (SELECT numero FROM infoplazas WHERE LOWER(TRIM(provincia)) = LOWER(TRIM(p_provincia))))
+    GROUP BY rd.regional
+    ORDER BY SUM(rd.total) DESC
+  ) t;
+
+  -- 4. Matriz de Visitantes por Infoplaza (Excluyendo cerradas definitivamente)
+  SELECT json_agg(t.row) INTO v_visitantes_por_infoplaza
+  FROM (
+    SELECT json_build_object(
+      'numero', ipa.numero,
+      'nombre', ipa.nombre,
+      'regional', ipa.regional,
+      'provincia', ipa.provincia,
+      'total', COALESCE(SUM(rd.total), 0),
+      'masculino', COALESCE(SUM(rd.masculino), 0),
+      'femenino', COALESCE(SUM(rd.femenino), 0),
+      'primaria', COALESCE(SUM(rd.primaria), 0),
+      'secundaria', COALESCE(SUM(rd.secundaria), 0),
+      'universitario', COALESCE(SUM(rd.universitario), 0),
+      'docente', COALESCE(SUM(rd.docente), 0),
+      'tercera_edad', COALESCE(SUM(rd.tercera_edad), 0),
+      'publico_general', COALESCE(SUM(rd.publico_general), 0)
+    ) AS row
+    FROM ipa_infoplazas_activas ipa
+    LEFT JOIN resumen_demografico rd 
+      ON ipa.numero = rd.numero_infoplaza 
+      AND (p_anio = 0 OR rd.anio = p_anio)
+      AND (p_mes = '' OR rd.mes = p_mes) AND (p_cuatrimestre = 0 OR (rd.mes_numero <= 4 AND p_cuatrimestre = 1) OR (rd.mes_numero > 4 AND rd.mes_numero <= 8 AND p_cuatrimestre = 2) OR (rd.mes_numero > 8 AND p_cuatrimestre = 3))
+    WHERE (p_regional = '' OR LOWER(TRIM(ipa.regional)) = LOWER(TRIM(p_regional)))
+      AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
+        AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
+      AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
+    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia
+    ORDER BY COALESCE(SUM(rd.total), 0) DESC
+  ) t;
+
+  -- ------------------------------------------------------------------
+  -- PASO N: CONSOLIDAR TODO EL PAYLOAD DE RETORNO
+  -- ------------------------------------------------------------------
+  v_resultado := json_build_object(
+    'networkKpis', json_build_object(
+      'totalActivas', v_total_activas,
+      'totalReportadas', v_total_reportadas,
+      'cumplimientoSinc', v_cumplimiento_sinc,
+      'ipsRevision', v_ips_revision,
+      'ipsConActividadPeriodo', v_ips_con_actividad_periodo,
+      'porcentajeCobertura', 100.0 -- estático a solicitud del negocio
+    ),
+    'serviceKpis', json_build_object(
+      'totalAtenciones', v_total_atenciones,
+      'promedioAtenciones', v_promedio_atenciones,
+      'servicioLider', v_servicio_lider,
+      'servicioLiderTotal', v_servicio_lider_total,
+      'servicioLiderPorcentaje', v_servicio_lider_porcentaje,
+      'crecimientoYTD', v_crecimiento_ytd
+    ),
+    'visitorKpis', json_build_object(
+      'totalVisitantes', v_total_visitantes,
+      'totalEducativo', v_total_educativo,
+      'porcentajeFemenino', v_porcentaje_femenino,
+      'generoLider', v_genero_lider,
+      'generoLiderTotal', v_genero_lider_total,
+      'generoLiderPorcentaje', v_genero_lider_porcentaje,
+      'segmentoLider', v_segmento_lider,
+      'segmentoLiderTotal', v_segmento_lider_total,
+      'segmentoLiderPorcentaje', v_segmento_lider_porcentaje
+    ),
+    'tendenciaMensual', COALESCE(v_tendencia_mensual, '[]'::json),
+    'regionalRows', COALESCE(v_regional_rows, '[]'::json),
+    'syncRegionalRows', COALESCE(v_sync_regional_rows, '[]'::json),
+    'riskRows', COALESCE(v_risk_rows, '[]'::json),
+    'tableRows', COALESCE(v_table_rows, '[]'::json),
+    'serviceRanking', COALESCE(v_service_ranking, '[]'::json),
+    'visitorSegments', COALESCE(v_visitor_segments, '[]'::json),
+    'ultimoCorteDate', v_ultimo_corte,
+    -- Campos agregados para la pestaña de Servicios
+    'tendenciaServicios', COALESCE(v_tendencia_servicios, '[]'::json),
+    'serviciosPorRegional', COALESCE(v_servicios_por_regional, '[]'::json),
+    'serviciosPorInfoplaza', COALESCE(v_servicios_por_infoplaza, '[]'::json),
+    -- Campos agregados para la pestaña de Visitantes
+    'visitorGenderTypeRows', COALESCE(v_visitor_gender_type_rows, '[]'::json),
+    'tendenciaVisitantes', COALESCE(v_tendencia_visitantes, '[]'::json),
+    'visitantesPorRegional', COALESCE(v_visitantes_por_regional, '[]'::json),
+    'visitantesPorInfoplaza', COALESCE(v_visitantes_por_infoplaza, '[]'::json)
+  );
+
+  RETURN v_resultado;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+
+
