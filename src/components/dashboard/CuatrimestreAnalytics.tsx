@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { getCuatrimestralData } from '@/app/informes-actions';
-import { AlertCircle, FileText, CheckCircle2, Clock, XCircle, Search, X, Building } from 'lucide-react';
+import { AlertCircle, FileText, CheckCircle2, Clock, XCircle, Search, X, Building, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 
@@ -92,6 +92,7 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
 
     setDrawerData({
       title,
+      list: filteredList,
       content: (
         <div className="flex flex-col gap-2">
           {filteredList.map((ip, i) => (
@@ -116,6 +117,34 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
       )
     });
     setIsDrawerOpen(true);
+  };
+
+
+  const handleExportCSV = () => {
+    if (!drawerData?.list) return;
+    
+    const headers = ['Nro Infoplaza', 'Nombre', 'Regional', 'Provincia', 'Distrito', 'Corregimiento', 'Estado de Entrega', 'Observacion', 'Cuatrimestre'];
+    const csvRows = drawerData.list.map((ip: any) => [
+      ip.numero,
+      `"${(ip.nombre || '').replace(/"/g, '""')}"`,
+      `"${ip.regional || ''}"`,
+      `"${ip.provincia || ''}"`,
+      `"${ip.distrito || ''}"`,
+      `"${ip.corregimiento || ''}"`,
+      `"${ip.reporteEstado || ''}"`,
+      `"${(ip.motivo || '').replace(/"/g, '""')}"`,
+      `"Q${filters.cuatrimestre} - ${filters.anio}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...csvRows.map((r: any) => r.join(','))].join('\n');
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `listado_cuatrimestre_Q${filters.cuatrimestre}_${filters.anio}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (!filters.cuatrimestre || filters.cuatrimestre === 0) {
@@ -167,12 +196,14 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
               </div>
               <Building size={32} className="text-blue-500/30" />
             </div>
-            <button 
-              onClick={() => handleVerDetalle()}
-              className="mt-3 w-full py-1 text-xs font-medium text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded border border-blue-500/20 transition-colors"
-            >
-              Ver Listado
-            </button>
+            <div className="flex justify-end mt-2">
+              <button 
+                onClick={() => handleVerDetalle()}
+                className="text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline transition-all uppercase"
+              >
+                Ver
+              </button>
+            </div>
           </CardContent>
         </Card>
         <Card className="glass border-[var(--card-border)] bg-gradient-to-br from-emerald-900/20 to-transparent flex flex-col justify-between">
@@ -184,12 +215,14 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
               </div>
               <CheckCircle2 size={32} className="text-emerald-500/30" />
             </div>
-            <button 
-              onClick={() => handleVerDetalle('entregado')}
-              className="mt-3 w-full py-1 text-xs font-medium text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded border border-emerald-500/20 transition-colors"
-            >
-              Ver Listado
-            </button>
+            <div className="flex justify-end mt-2">
+              <button 
+                onClick={() => handleVerDetalle('entregado')}
+                className="text-xs font-bold text-emerald-400 hover:text-emerald-300 hover:underline transition-all uppercase"
+              >
+                Ver
+              </button>
+            </div>
           </CardContent>
         </Card>
         <Card className="glass border-[var(--card-border)] bg-gradient-to-br from-yellow-900/20 to-transparent flex flex-col justify-between">
@@ -201,12 +234,14 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
               </div>
               <Clock size={32} className="text-yellow-500/30" />
             </div>
-            <button 
-              onClick={() => handleVerDetalle('pendiente')}
-              className="mt-3 w-full py-1 text-xs font-medium text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 rounded border border-yellow-500/20 transition-colors"
-            >
-              Ver Listado
-            </button>
+            <div className="flex justify-end mt-2">
+              <button 
+                onClick={() => handleVerDetalle('pendiente')}
+                className="text-xs font-bold text-yellow-400 hover:text-yellow-300 hover:underline transition-all uppercase"
+              >
+                Ver
+              </button>
+            </div>
           </CardContent>
         </Card>
         <Card className="glass border-[var(--card-border)] bg-gradient-to-br from-red-900/20 to-transparent flex flex-col justify-between">
@@ -218,12 +253,14 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
               </div>
               <XCircle size={32} className="text-red-500/30" />
             </div>
-            <button 
-              onClick={() => handleVerDetalle('no entrega')}
-              className="mt-3 w-full py-1 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded border border-red-500/20 transition-colors"
-            >
-              Ver Listado
-            </button>
+            <div className="flex justify-end mt-2">
+              <button 
+                onClick={() => handleVerDetalle('no entrega')}
+                className="text-xs font-bold text-red-400 hover:text-red-300 hover:underline transition-all uppercase"
+              >
+                Ver
+              </button>
+            </div>
           </CardContent>
         </Card>
       </div>
