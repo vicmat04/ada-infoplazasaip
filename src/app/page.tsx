@@ -84,6 +84,7 @@ export default function Page() {
   
   const [isPending, startTransition] = useTransition();
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Estados de Ver detalle (Drawer)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -486,3 +487,4 @@ export default function Page() {
     </div>
   );
 }
+
