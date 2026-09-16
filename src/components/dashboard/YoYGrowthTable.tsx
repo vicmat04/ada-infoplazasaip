@@ -302,7 +302,7 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
                         </th>
                         {idx > 0 && (
                           <th className="px-4 py-4 font-semibold text-center bg-emerald-900/20 border-l border-emerald-500/20 w-32 whitespace-nowrap text-emerald-200 cursor-pointer hover:bg-emerald-900/40 transition-colors" onClick={() => handleSort(`crec_${selectedAnios[idx-1]}_${anioVal}`)}>
-                            Crec. '{selectedAnios[idx-1].toString().slice(-2)}→'{anioVal.toString().slice(-2)} <SortIcon columnKey={`crec_${selectedAnios[idx-1]}_${anioVal}`} />
+                            Crec. &apos;{selectedAnios[idx-1].toString().slice(-2)} &rarr; &apos;{anioVal.toString().slice(-2)} {renderSortIcon(`crec_${selectedAnios[idx-1]}_${anioVal}`)}
                           </th>
                         )}
                       </React.Fragment>
@@ -391,4 +391,5 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
     </Card>
   );
 }
+
 
