@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { getCuatrimestralData } from '@/app/informes-actions';
-import { AlertCircle, FileText, CheckCircle2, Clock, XCircle, Search, X } from 'lucide-react';
+import { AlertCircle, FileText, CheckCircle2, Clock, XCircle, Search, X, Building } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 
@@ -145,7 +145,16 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="glass border-[var(--card-border)] bg-gradient-to-br from-blue-900/20 to-transparent">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Habilitadas</p>
+              <h3 className="text-2xl font-bold text-blue-400" title="Infoplazas habilitadas para entregar">{(stats.entregados + stats.pendientes + stats.noEntrega).toLocaleString('es-PA')}</h3>
+            </div>
+            <Building size={32} className="text-blue-500/30" />
+          </CardContent>
+        </Card>
         <Card className="glass border-[var(--card-border)] bg-gradient-to-br from-emerald-900/20 to-transparent">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
