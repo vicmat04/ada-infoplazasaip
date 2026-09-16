@@ -18,8 +18,8 @@ interface PeriodoItem {
 }
 
 interface FiltersBarProps {
-  onFiltersChange: (filters: { anio: number; mes: string; regional: string; provincia: string; distrito: string; infoplaza: number }) => void;
-  activeFilters: { anio: number; mes: string; regional: string; provincia: string; distrito: string; infoplaza: number };
+  onFiltersChange: (filters: { anio: number; mes: string; regional: string; provincia: string; distrito: string; infoplaza: number; cuatrimestre: number }) => void;
+  activeFilters: { anio: number; mes: string; regional: string; provincia: string; distrito: string; infoplaza: number; cuatrimestre: number };
   allInfoplazas: InfoplazaItem[];
   availablePeriods: PeriodoItem[];
 }
@@ -154,7 +154,11 @@ export default function FiltersBar({ onFiltersChange, activeFilters, allInfoplaz
   };
 
   const handleSelectMes = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onFiltersChange({ ...activeFilters, mes: e.target.value });
+    onFiltersChange({ ...activeFilters, mes: e.target.value, cuatrimestre: 0 });
+  };
+
+  const handleSelectCuatrimestre = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onFiltersChange({ ...activeFilters, cuatrimestre: parseInt(e.target.value, 10), mes: '' });
   };
 
   const handleSelectRegional = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -183,11 +187,13 @@ export default function FiltersBar({ onFiltersChange, activeFilters, allInfoplaz
       provincia: '',
       distrito: '',
       infoplaza: 0,
+      cuatrimestre: 0,
     });
   };
 
   const hasActiveFilters = 
     activeFilters.mes !== '' || 
+    activeFilters.cuatrimestre !== 0 ||
     activeFilters.regional !== '' || 
     activeFilters.provincia !== '' || 
     activeFilters.distrito !== '' ||
@@ -228,6 +234,20 @@ export default function FiltersBar({ onFiltersChange, activeFilters, allInfoplaz
                 {m.label}
               </option>
             ))}
+          </select>
+        </div>
+
+        {/* Cuatrimestre */}
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
+          <select
+            value={activeFilters.cuatrimestre}
+            onChange={handleSelectCuatrimestre}
+            className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-white/5 border border-[var(--card-border)] text-sm focus:outline-none focus:border-blue-500/50 transition-colors sm:min-w-[150px]"
+          >
+            <option value={0} className="bg-slate-950 text-white">Todos los cuatrimestres</option>
+            <option value={1} className="bg-slate-950 text-white">Q1 (Ene-Abr)</option>
+            <option value={2} className="bg-slate-950 text-white">Q2 (May-Ago)</option>
+            <option value={3} className="bg-slate-950 text-white">Q3 (Sep-Dic)</option>
           </select>
         </div>
 

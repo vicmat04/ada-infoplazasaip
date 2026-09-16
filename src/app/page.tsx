@@ -16,6 +16,7 @@ import AuditTabSection from '../components/dashboard/AuditTabSection';
 import ComparativeGrowthTable from '../components/dashboard/ComparativeGrowthTable';
 import YoYGrowthTable from '../components/dashboard/YoYGrowthTable';
 import CuatrimestreGrowthTable from '../components/dashboard/CuatrimestreGrowthTable';
+import CuatrimestreAnalytics from '../components/dashboard/CuatrimestreAnalytics';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { getDashboardData, getInfoplazasCatalog, getAvailablePeriods } from './actions';
 import { 
@@ -74,6 +75,7 @@ export default function Page() {
     provincia: '',
     distrito: '',
     infoplaza: 0,
+    cuatrimestre: 0,
   });
 
   const [allInfoplazas, setAllInfoplazas] = useState<InfoplazaItem[]>([]);
@@ -288,6 +290,9 @@ export default function Page() {
                     syncRegionalRows={dashboardData.syncRegionalRows}
                     isLoading={isPending && !dashboardData}
                   />
+
+                  {/* Análisis Cuatrimestral (Nuevas Tablas ADA) */}
+                  <CuatrimestreAnalytics filters={filters} />
 
                   {/* Tabla Comparativa de Crecimiento (MoM) */}
                   <ComparativeGrowthTable filters={filters} />

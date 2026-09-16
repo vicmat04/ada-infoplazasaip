@@ -24,6 +24,7 @@ export interface DashboardFilters {
   provincia?: string;
   distrito?: string;
   infoplaza?: number;
+  cuatrimestre?: number;
 }
 
 interface ResumenServicioRow {
