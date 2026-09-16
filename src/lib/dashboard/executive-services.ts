@@ -112,7 +112,8 @@ export async function getExecutiveDashboardSnapshot(filters: DashboardFilters = 
     p_regional: targetRegional,
     p_provincia: targetProvincia,
     p_distrito: targetDistrito,
-    p_infoplaza: targetInfoplaza
+    p_infoplaza: targetInfoplaza,
+    p_cuatrimestre: filters.cuatrimestre || 0
   });
 
   if (error) {
