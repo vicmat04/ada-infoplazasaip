@@ -92,7 +92,7 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
     });
   }, [data, sortConfig]);
 
-  const SortIcon = ({ columnKey }: { columnKey: string }) => {
+  const renderSortIcon = (columnKey: string) => {
     if (sortConfig?.key !== columnKey) return <ArrowUpDown size={14} className="ml-1 inline opacity-50" />;
     return sortConfig.direction === 'asc' 
       ? <ArrowUp size={14} className="ml-1 inline text-emerald-400" />
@@ -287,13 +287,13 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
                       Infoplaza <SortIcon columnKey="nombre" />
                     </th>
                     <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('regional')}>
-                      Regional <SortIcon columnKey="regional" />
+                      Regional {renderSortIcon('regional')}
                     </th>
                     <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('provincia')}>
                       Provincia <SortIcon columnKey="provincia" />
                     </th>
                     <th className="px-4 py-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-800 transition-colors text-center" onClick={() => handleSort('estado')}>
-                      Estado <SortIcon columnKey="estado" />
+                      Estado {renderSortIcon('estado')}
                     </th>
                     {selectedAnios.map((anioVal, idx) => (
                       <React.Fragment key={anioVal}>
@@ -391,3 +391,4 @@ export default function YoYGrowthTable({ filters }: { filters: any }) {
     </Card>
   );
 }
+

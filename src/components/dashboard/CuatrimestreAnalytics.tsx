@@ -20,9 +20,12 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
     let isMounted = true;
     setLoading(true);
     getCuatrimestralData(filters, filters.anio, filters.cuatrimestre).then((res) => {
-      if (isMounted && res.success) {
+      if (isMounted && res?.success) {
         setData(res.data);
       }
+      if (isMounted) setLoading(false);
+    }).catch((err) => {
+      console.error(err);
       if (isMounted) setLoading(false);
     });
 
@@ -281,6 +284,7 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
     </div>
   );
 }
+
 
 
 

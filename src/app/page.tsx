@@ -98,42 +98,60 @@ export default function Page() {
     }
   }, [activeTab]);
 
-  // Inicializar tema, catálogo de infoplazas y períodos dinámicos
+  // Inicializar tema, catálogo de infoplazas y períodos dinámicos  // Inicializacin segura
   useEffect(() => {
-    // Tema por defecto oscuro
+    // Forzar tema oscuro por defecto
     document.documentElement.classList.remove('light');
     document.documentElement.classList.add('dark');
 
-    async function initData() {
+    // Cargar catálogos iniciales
+    const loadInitialData = async () => {
       setIsCatalogLoading(true);
-      const [resCatalog, resPeriods] = await Promise.all([
-        getInfoplazasCatalog(),
-        getAvailablePeriods()
-      ]);
-
-      if (resCatalog.success && resCatalog.data) {
-        setAllInfoplazas(resCatalog.data);
-      }
-      if (resPeriods.success && resPeriods.data) {
-        setAvailablePeriods(resPeriods.data);
-        if (resPeriods.data.length > 0) {
-          const maxAnio = resPeriods.data[0].anio;
-          setFilters(prev => ({ ...prev, anio: maxAnio }));
+      setFetchError(null);
+      try {
+        const [ipsRes, periodsRes] = await Promise.all([
+          getInfoplazasCatalog(),
+          getAvailablePeriods()
+        ]);
+        
+        if (ipsRes.success && ipsRes.data) {
+          setAllInfoplazas(ipsRes.data);
+        } else {
+          setFetchError(ipsRes.error || 'Error al cargar catálogo de Infoplazas');
         }
+
+        if (periodsRes.success && periodsRes.data) {
+          setAvailablePeriods(periodsRes.data);
+          if (periodsRes.data.length > 0) {
+            const maxAnio = periodsRes.data[0].anio;
+            setFilters(prev => ({ ...prev, anio: maxAnio }));
+          }
+        }
+      } catch (e: any) {
+        setFetchError(e.message || 'Error de conexión inicial');
       }
       setIsCatalogLoading(false);
-    }
-    initData();
+    };
+
+    loadInitialData();
   }, []);
 
   // Cargar/Actualizar data agregada del dashboard mediante RPC al cambiar filtros
   useEffect(() => {
-    if (allInfoplazas.length === 0) return;
+    if (fetchError) return;
+    if (allInfoplazas.length === 0 && isCatalogLoading) return;
     
     startTransition(async () => {
-      const res = await getDashboardData(filters);
-      if (res.success && res.data) {
-        setDashboardData(res.data);
+      try {
+        setFetchError(null);
+        const res = await getDashboardData(filters);
+        if (res?.success && res.data) {
+          setDashboardData(res.data);
+        } else {
+          setFetchError(res?.error || 'Error al obtener datos');
+        }
+      } catch (err: any) {
+        setFetchError(err?.message || 'Error catastrófico de red');
       }
     });
   }, [filters, allInfoplazas]);
@@ -467,8 +485,17 @@ export default function Page() {
             </div>
           )}
 
+          {/* Estado de Error */}
+          {!dashboardData && fetchError && (
+            <div className="h-[460px] flex flex-col items-center justify-center text-center p-6 border border-red-500/20 bg-red-500/10 rounded-xl">
+              <div className="text-red-500 font-bold text-xl mb-2">Error de Conexión</div>
+              <p className="text-red-400 font-medium">{fetchError}</p>
+              <p className="text-slate-400 text-sm mt-4 max-w-md">Si el error indica que no se encuentra la función, asegúrese de haber corrido el script SQL más reciente en Supabase para actualizar el RPC. Si está en Vercel Preview, revise que las variables de entorno estén marcadas para Preview.</p>
+            </div>
+          )}
+
           {/* Estado de carga general inicial */}
-          {!dashboardData && (
+          {!dashboardData && !fetchError && (
             <div className="h-[460px] flex flex-col items-center justify-center text-center p-6">
               <RefreshCw className="w-10 h-10 mb-4 animate-spin text-blue-500" />
               <p className="text-sm font-semibold text-slate-300">Cargando base de datos de Supabase...</p>
@@ -487,6 +514,7 @@ export default function Page() {
     </div>
   );
 }
+
 
 
 
