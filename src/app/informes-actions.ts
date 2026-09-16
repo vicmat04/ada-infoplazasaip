@@ -5,7 +5,7 @@ import { supabaseAdmin, DashboardFilters } from '../lib/dashboard/executive-serv
 export async function getCuatrimestralData(filters: DashboardFilters, anio: number, cuatrimestre: number) {
   try {
     // 1. Obtener infoplazas permitidas (según regional/provincia)
-    let ipQuery = supabaseAdmin.from('infoplazas').select('numero, nombre, regional, provincia, estado');
+    let ipQuery = supabaseAdmin.from('infoplazas').select('numero, nombre, regional, provincia, distrito, corregimiento, estado');
     
     if (filters.regional) {
       ipQuery = ipQuery.eq('regional', filters.regional);
