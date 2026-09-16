@@ -3,8 +3,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { getCuatrimestralData } from '@/app/informes-actions';
-import { AlertCircle, FileText, CheckCircle2, Clock, XCircle, Users, BookOpen, Activity } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie } from 'recharts';
+import { AlertCircle, FileText, CheckCircle2, Clock, Users, BookOpen, Activity } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
   const [data, setData] = useState<any>(null);
