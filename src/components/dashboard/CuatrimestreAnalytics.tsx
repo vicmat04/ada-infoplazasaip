@@ -29,6 +29,63 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
     return () => { isMounted = false; };
   }, [filters]);
 
+  // PROCESAMIENTO DE DATOS - Normalizando categorías (case-insensitive)
+  const capacitacionesAgrupadas = useMemo(() => {
+    if (!data?.capacitaciones) return [];
+    const acc: Record<string, { categoria: string; participantes: number; horas: number }> = {};
+    data.capacitaciones.forEach((c: any) => {
+      const catOriginal = c.categoria ? c.categoria.trim() : 'Sin Categoría';
+      // Normalizamos la clave para agrupar (ej. "CINE" -> "cine")
+      const catKey = catOriginal.toLowerCase();
+      if (!acc[catKey]) {
+        // Guardamos el nombre original con formato título (Capitalize) para mostrarlo bonito
+        const catLabel = catOriginal.charAt(0).toUpperCase() + catKey.slice(1);
+        acc[catKey] = { categoria: catLabel, participantes: 0, horas: 0 };
+      }
+      acc[catKey].participantes += Number(c.participantes) || 0;
+      acc[catKey].horas += Number(c.horas) || 0;
+    });
+    return Object.values(acc).sort((a, b) => b.participantes - a.participantes);
+  }, [data]);
+
+  const actividadesAgrupadas = useMemo(() => {
+    if (!data?.actividades) return [];
+    const acc: Record<string, { categoria: string; participantes: number }> = {};
+    data.actividades.forEach((a: any) => {
+      const catOriginal = a.categoria ? a.categoria.trim() : 'Sin Categoría';
+      const catKey = catOriginal.toLowerCase();
+      if (!acc[catKey]) {
+        const catLabel = catOriginal.charAt(0).toUpperCase() + catKey.slice(1);
+        acc[catKey] = { categoria: catLabel, participantes: 0 };
+      }
+      acc[catKey].participantes += Number(a.participantes) || 0;
+    });
+    return Object.values(acc).sort((a, b) => b.participantes - a.participantes);
+  }, [data]);
+  
+  const serviciosAgrupados = useMemo(() => {
+    if (!data?.servicios) return [];
+    const acc: Record<string, { servicio: string; cantidad: number }> = {};
+    data.servicios.forEach((s: any) => {
+      if (!s.ofrecido) return;
+      const sOriginal = s.servicio_nombre ? s.servicio_nombre.trim() : 'Sin Nombre';
+      const sKey = sOriginal.toLowerCase();
+      if (!acc[sKey]) {
+        const sLabel = sOriginal.charAt(0).toUpperCase() + sKey.slice(1);
+        acc[sKey] = { servicio: sLabel, cantidad: 0 };
+      }
+      acc[sKey].cantidad += 1; // Contamos cuántas infoplazas ofrecieron este servicio
+    });
+    return Object.values(acc).sort((a, b) => b.cantidad - a.cantidad);
+  }, [data]);
+  
+  const totalParticipantesCap = capacitacionesAgrupadas.reduce((sum, item) => sum + item.participantes, 0);
+  const totalHorasCap = capacitacionesAgrupadas.reduce((sum, item) => sum + item.horas, 0);
+  const totalParticipantesAct = actividadesAgrupadas.reduce((sum, item) => sum + item.participantes, 0);
+
+  // Control de entrega stats
+  const ctrlEntregados = data?.control ? data.control.filter((c: any) => c.estado?.toLowerCase() === 'entregado').length : 0;
+  
   if (!filters.cuatrimestre || filters.cuatrimestre === 0) {
     return (
       <div className="glass rounded-xl p-8 flex flex-col items-center justify-center text-center text-slate-400 mb-6 animate-fade-in">
@@ -60,62 +117,6 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
       </div>
     );
   }
-
-  // PROCESAMIENTO DE DATOS - Normalizando categorías (case-insensitive)
-  const capacitacionesAgrupadas = useMemo(() => {
-    const acc: Record<string, { categoria: string; participantes: number; horas: number }> = {};
-    data.capacitaciones.forEach((c: any) => {
-      const catOriginal = c.categoria ? c.categoria.trim() : 'Sin Categoría';
-      // Normalizamos la clave para agrupar (ej. "CINE" -> "cine")
-      const catKey = catOriginal.toLowerCase();
-      if (!acc[catKey]) {
-        // Guardamos el nombre original con formato título (Capitalize) para mostrarlo bonito
-        const catLabel = catOriginal.charAt(0).toUpperCase() + catKey.slice(1);
-        acc[catKey] = { categoria: catLabel, participantes: 0, horas: 0 };
-      }
-      acc[catKey].participantes += Number(c.participantes) || 0;
-      acc[catKey].horas += Number(c.horas) || 0;
-    });
-    return Object.values(acc).sort((a, b) => b.participantes - a.participantes);
-  }, [data.capacitaciones]);
-
-  const actividadesAgrupadas = useMemo(() => {
-    const acc: Record<string, { categoria: string; participantes: number }> = {};
-    data.actividades.forEach((a: any) => {
-      const catOriginal = a.categoria ? a.categoria.trim() : 'Sin Categoría';
-      const catKey = catOriginal.toLowerCase();
-      if (!acc[catKey]) {
-        const catLabel = catOriginal.charAt(0).toUpperCase() + catKey.slice(1);
-        acc[catKey] = { categoria: catLabel, participantes: 0 };
-      }
-      acc[catKey].participantes += Number(a.participantes) || 0;
-    });
-    return Object.values(acc).sort((a, b) => b.participantes - a.participantes);
-  }, [data.actividades]);
-  
-  const serviciosAgrupados = useMemo(() => {
-    const acc: Record<string, { servicio: string; cantidad: number }> = {};
-    data.servicios.forEach((s: any) => {
-      if (!s.ofrecido) return;
-      const sOriginal = s.servicio_nombre ? s.servicio_nombre.trim() : 'Sin Nombre';
-      const sKey = sOriginal.toLowerCase();
-      if (!acc[sKey]) {
-        const sLabel = sOriginal.charAt(0).toUpperCase() + sKey.slice(1);
-        acc[sKey] = { servicio: sLabel, cantidad: 0 };
-      }
-      acc[sKey].cantidad += 1; // Contamos cuántas infoplazas ofrecieron este servicio
-    });
-    return Object.values(acc).sort((a, b) => b.cantidad - a.cantidad);
-  }, [data.servicios]);
-  
-  const totalParticipantesCap = capacitacionesAgrupadas.reduce((sum, item) => sum + item.participantes, 0);
-  const totalHorasCap = capacitacionesAgrupadas.reduce((sum, item) => sum + item.horas, 0);
-  const totalParticipantesAct = actividadesAgrupadas.reduce((sum, item) => sum + item.participantes, 0);
-
-  // Control de entrega stats
-  const ctrlEntregados = data.control.filter((c: any) => c.estado?.toLowerCase() === 'entregado').length;
-  const ctrlPendientes = data.control.filter((c: any) => c.estado?.toLowerCase() === 'pendiente').length;
-  const ctrlNoEntrega = data.control.filter((c: any) => c.estado?.toLowerCase() === 'no entrega').length;
 
   return (
     <div className="flex flex-col gap-6 mb-6 animate-fade-in">
@@ -280,4 +281,6 @@ export default function CuatrimestreAnalytics({ filters }: { filters: any }) {
     </div>
   );
 }
+
+
 
