@@ -76,6 +76,10 @@ const COLOR_ACT = '#f97316';
 const COLOR_SRV = '#10b981';
 const COLOR_HORAS = '#0ea5e9';
 
+/** Detecta si una categor
+en es "Otra/Otras/Otro" (case-insensitive) */
+const esOtra = (categoria: string) => /^otra?s?$/i.test(categoria?.trim() || '');
+
 const n = (v: number | null | undefined, dec = 0) =>
   (Number(v) || 0).toLocaleString('es-PA', { maximumFractionDigits: dec, minimumFractionDigits: dec });
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
@@ -151,15 +155,21 @@ function DataTable<T extends object>({ columns, rows, footer }: { columns: Col<T
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="border-t border-[var(--card-border)] text-[var(--foreground)]">
-              {columns.map((c) => (
-                <td key={c.key} className={`px-3 py-2 ${c.align === 'right' ? 'text-right tabular-nums whitespace-nowrap' : ''}`}>
-                  {c.render ? c.render(r) : ((r as Record<string, unknown>)[c.key] as React.ReactNode)}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((r, i) => {
+            // Disimular filas con "otra/otras/otro"
+            const rowData = r as Record<string, unknown>;
+            const categoria = String(rowData.categoria || '');
+            const esOtraRow = esOtra(categoria);
+            return (
+              <tr key={i} className={`border-t border-[var(--card-border)] text-[var(--foreground)] ${esOtraRow ? 'opacity-50' : ''}`}>
+                {columns.map((c) => (
+                  <td key={c.key} className={`px-3 py-2 ${c.align === 'right' ? 'text-right tabular-nums whitespace-nowrap' : ''}`}>
+                    {c.render ? c.render(r) : ((r as Record<string, unknown>)[c.key] as React.ReactNode)}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
           {rows.length === 0 && (
             <tr><td colSpan={columns.length} className="px-3 py-6 text-center text-[var(--muted)]">Sin registros para este filtro</td></tr>
           )}
@@ -278,12 +288,17 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
 
   useEffect(() => {
     let vivo = true;
-    getCapacitacionesReport(JSON.parse(filtersKey))
-      .then((res) => {
-        if (!vivo) return;
-        setResultado(res.success ? { key: filtersKey, data: res.data as Report } : { key: filtersKey, error: res.error });
-      })
-      .catch((e) => { if (vivo) setResultado({ key: filtersKey, error: String(e) }); });
+    try {
+      const parsedFilters = JSON.parse(filtersKey);
+      getCapacitacionesReport(parsedFilters)
+        .then((res) => {
+          if (!vivo) return;
+          setResultado(res.success ? { key: filtersKey, data: res.data as Report } : { key: filtersKey, error: res.error });
+        })
+        .catch((e) => { if (vivo) setResultado({ key: filtersKey, error: String(e) }); });
+    } catch (e) {
+      if (vivo) setResultado({ key: filtersKey, error: 'Error al parsear filtros' });
+    }
     return () => { vivo = false; };
   }, [filtersKey]);
 
@@ -299,16 +314,36 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
   const k = data?.kpis;
 
   /* ── Derivados ── */
-  const capCat = useMemo(() => (data?.cap_por_categoria || []).map((c) => ({
-    ...c, horas: Number(c.horas) || 0,
-    part_por_sesion: div(c.participantes, c.sesiones),
-    pct: pct(c.participantes, data?.kpis.cap_participantes || 0),
-  })), [data]);
+  const capCat = useMemo(() => {
+    const items = (data?.cap_por_categoria || []).map((c) => ({
+      ...c, horas: Number(c.horas) || 0,
+      part_por_sesion: div(c.participantes, c.sesiones),
+      pct: pct(c.participantes, data?.kpis.cap_participantes || 0),
+    }));
+    // Ordenar: "otra/otras/otro" siempre al final
+    return items.sort((a, b) => {
+      const aEsOtra = esOtra(a.categoria);
+      const bEsOtra = esOtra(b.categoria);
+      if (aEsOtra && !bEsOtra) return 1;
+      if (!aEsOtra && bEsOtra) return -1;
+      return 0; // Mantener orden original para las demás
+    });
+  }, [data]);
 
-  const actCat = useMemo(() => (data?.act_por_categoria || []).map((a) => ({
-    ...a, pct: pct(a.participantes, data?.kpis.act_participantes || 0),
-    part_por_act: div(a.participantes, a.actividades),
-  })), [data]);
+  const actCat = useMemo(() => {
+    const items = (data?.act_por_categoria || []).map((a) => ({
+      ...a, pct: pct(a.participantes, data?.kpis.act_participantes || 0),
+      part_por_act: div(a.participantes, a.actividades),
+    }));
+    // Ordenar: "otra/otras/otro" siempre al final
+    return items.sort((a, b) => {
+      const aEsOtra = esOtra(a.categoria);
+      const bEsOtra = esOtra(b.categoria);
+      if (aEsOtra && !bEsOtra) return 1;
+      if (!aEsOtra && bEsOtra) return -1;
+      return 0; // Mantener orden original para las demás
+    });
+  }, [data]);
 
   const servicios = useMemo(() => (data?.servicios || []).map((s) => ({
     ...s, cobertura: pct(s.ips_ofrecen, s.ips_reportan),
@@ -344,11 +379,15 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
       `con ${n(kp.cap_participantes)} participantes y ${n(kp.cap_horas)} horas de formación, y se realizaron ${n(kp.act_cantidad)} actividades ` +
       `comunitarias con ${n(kp.act_participantes)} participantes.`
     );
-    if (capCat[0]) {
-      p.push(`La categoría de capacitación con más participantes fue ${capCat[0].categoria} (${n(capCat[0].participantes)}, ${n(capCat[0].pct, 1)}% del total)` +
-        (capCat[1] ? `, seguida de ${capCat[1].categoria} (${n(capCat[1].participantes)}).` : '.'));
+    // Filtrar "otra/otras" para el resumen ejecutivo
+    const capCatFiltrado = capCat.filter(c => !esOtra(c.categoria));
+    const actCatFiltrado = actCat.filter(a => !esOtra(a.categoria));
+
+    if (capCatFiltrado[0]) {
+      p.push(`La categoría de capacitación con más participantes fue ${capCatFiltrado[0].categoria} (${n(capCatFiltrado[0].participantes)}, ${n(capCatFiltrado[0].pct, 1)}% del total)` +
+        (capCatFiltrado[1] ? `, seguida de ${capCatFiltrado[1].categoria} (${n(capCatFiltrado[1].participantes)}).` : '.'));
     }
-    if (actCat[0]) p.push(`En actividades destaca ${actCat[0].categoria}, con ${n(actCat[0].participantes)} participantes en ${n(actCat[0].actividades)} actividades.`);
+    if (actCatFiltrado[0]) p.push(`En actividades destaca ${actCatFiltrado[0].categoria}, con ${n(actCatFiltrado[0].participantes)} participantes en ${n(actCatFiltrado[0].actividades)} actividades.`);
     if (regionales.length > 1) {
       const orden = [...regionales].sort((a, b) => b.part_cap_por_ip - a.part_cap_por_ip);
       const mayor = orden[0], menor = orden[orden.length - 1];
