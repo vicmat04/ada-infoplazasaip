@@ -76,6 +76,29 @@ const COLOR_ACT = '#f97316';
 const COLOR_SRV = '#10b981';
 const COLOR_HORAS = '#0ea5e9';
 
+/** Exporta datos a CSV */
+const exportarCSV = (datos: Record<string, unknown>[], nombreArchivo: string, columnas?: { key: string; label: string }[]) => {
+  if (!datos || datos.length === 0) return;
+  const cols = columnas || Object.keys(datos[0]).map(k => ({ key: k, label: k }));
+  const headers = cols.map(c => c.label).join(',');
+  const rows = datos.map(row => 
+    cols.map(c => {
+      let val = String(row[c.key] ?? '');
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        val = '"' + val.replace(/"/g, '""') + '"';
+      }
+      return val;
+    }).join(',')
+  ).join('\n');
+  const csv = headers + '\n' + rows;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = nombreArchivo;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
 /** Detecta si una categor
 en es "Otra/Otras/Otro" (case-insensitive) */
 const esOtra = (categoria: string) => /^otra?s?$/i.test(categoria?.trim() || '');
@@ -143,9 +166,33 @@ function Kpi({ label, value, detail, color }: { label: string; value: string; de
 
 type Col<T> = { key: string; label: string; align?: 'left' | 'right'; render?: (r: T) => React.ReactNode };
 
-function DataTable<T extends object>({ columns, rows, footer }: { columns: Col<T>[]; rows: T[]; footer?: Record<string, React.ReactNode> }) {
+function DataTable<T extends object>({ columns, rows, footer, csvFileName, csvData }: { 
+  columns: Col<T>[]; 
+  rows: T[]; 
+  footer?: Record<string, React.ReactNode>; 
+  csvFileName?: string; 
+  csvData?: Record<string, unknown>[];
+}) {
+  const handleExportCSV = () => {
+    if (!csvFileName) return;
+    const dataToExport = csvData || rows;
+    exportarCSV(dataToExport as Record<string, unknown>[], csvFileName, columns.map(c => ({ key: c.key, label: c.label })));
+  };
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
+    <div>
+      {csvFileName && (
+        <div className="flex justify-end mb-2" data-export-ignore>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600/10 border border-emerald-600/20 text-emerald-400 hover:bg-emerald-600/20 transition-colors"
+          >
+            <FileSpreadsheet size={14} />
+            Descargar CSV
+          </button>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-[var(--card-bg)] backdrop-blur">
           <tr className="text-[var(--muted)] text-xs">
@@ -186,6 +233,7 @@ function DataTable<T extends object>({ columns, rows, footer }: { columns: Col<T
           </tfoot>
         )}
       </table>
+      </div>
     </div>
   );
 }
@@ -288,17 +336,23 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
 
   useEffect(() => {
     let vivo = true;
+    let parsedFilters;
     try {
-      const parsedFilters = JSON.parse(filtersKey);
-      getCapacitacionesReport(parsedFilters)
-        .then((res) => {
-          if (!vivo) return;
-          setResultado(res.success ? { key: filtersKey, data: res.data as Report } : { key: filtersKey, error: res.error });
-        })
-        .catch((e) => { if (vivo) setResultado({ key: filtersKey, error: String(e) }); });
-    } catch (e) {
-      if (vivo) setResultado({ key: filtersKey, error: 'Error al parsear filtros' });
+      parsedFilters = JSON.parse(filtersKey);
+    } catch {
+      setTimeout(() => {
+        if (vivo) setResultado({ key: filtersKey, error: 'Error al parsear filtros' });
+      }, 0);
+      return () => { vivo = false; };
     }
+    
+    getCapacitacionesReport(parsedFilters)
+      .then((res) => {
+        if (!vivo) return;
+        setResultado(res.success ? { key: filtersKey, data: res.data as Report } : { key: filtersKey, error: res.error });
+      })
+      .catch((e) => { if (vivo) setResultado({ key: filtersKey, error: String(e) }); });
+    
     return () => { vivo = false; };
   }, [filtersKey]);
 
