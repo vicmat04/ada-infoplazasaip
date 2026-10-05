@@ -71,3 +71,31 @@ export async function getCuatrimestralData(filters: DashboardFilters, anio: numb
   }
 }
 
+
+/**
+ * Informe consolidado de Capacitaciones, Actividades y Servicios.
+ * Agrega en la base (RPC ipa_get_capacitaciones_report) para no topar con el
+ * límite de 1000 filas de PostgREST y respeta todos los filtros del dashboard.
+ * - cuatrimestre 0 = todo el año; anio 0 = todos los años.
+ * - mes: capacitaciones por mes exacto; actividades/servicios por su cuatrimestre.
+ */
+export async function getCapacitacionesReport(filters: DashboardFilters, incluirDetalle = false) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('ipa_get_capacitaciones_report', {
+      p_anio: filters.anio || 0,
+      p_cuatrimestre: filters.cuatrimestre || 0,
+      p_mes: filters.mes || '',
+      p_regional: filters.regional || '',
+      p_provincia: filters.provincia || '',
+      p_distrito: filters.distrito || '',
+      p_infoplaza: filters.infoplaza || 0,
+      p_incluir_detalle: incluirDetalle,
+    });
+    if (error) throw error;
+    return { success: true as const, data };
+  } catch (error: unknown) {
+    console.error('Error en getCapacitacionesReport:', error);
+    const msg = error instanceof Error ? error.message : (error as { message?: string })?.message;
+    return { success: false as const, error: msg || 'Error al obtener el informe de capacitaciones' };
+  }
+}

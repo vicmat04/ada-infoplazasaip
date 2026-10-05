@@ -410,7 +410,7 @@ export default function Page() {
 
               {/* VISTA 6: CAPACITACIONES */}
               {activeTab === 'capacitaciones' && (
-                <CapacitacionesAnalytics filters={filters} />
+                <CapacitacionesAnalytics filters={filters} allInfoplazas={allInfoplazas} />
               )}
 
               {/* VISTA 5: ADMINISTRACION (Hardening & Cargas) */}
