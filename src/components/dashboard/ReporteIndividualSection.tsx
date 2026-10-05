@@ -308,7 +308,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
     setIsGeneratingPDF(true);
     
     try {
-      const { toPng } = await import('html-to-image');
+      const { toJpeg } = await import('html-to-image');
       const { default: jsPDF } = await import('jspdf');
       
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
@@ -334,10 +334,9 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
         const element = document.getElementById(sectionId);
         if (!element) continue;
 
-        const dataUrl = await toPng(element, {
-          quality: 1,
-          pixelRatio: 2,
-          backgroundColor: '#ffffff'
+        const dataUrl = await toJpeg(element, {
+          quality: 0.8,
+          pixelRatio: 2, backgroundColor: '#ffffff'
         });
 
         const imgProps = pdf.getImageProperties(dataUrl);
@@ -350,7 +349,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
           currentY = margin;
         }
 
-        pdf.addImage(dataUrl, 'PNG', margin, currentY, renderWidth, renderHeight);
+        pdf.addImage(dataUrl, 'JPEG', margin, currentY, renderWidth, renderHeight);
         currentY += renderHeight + 5; // 5mm gap
       }
       

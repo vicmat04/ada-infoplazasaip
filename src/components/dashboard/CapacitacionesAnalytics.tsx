@@ -561,7 +561,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
   const exportarPDF = async () => {
     setExportando('pdf');
     try {
-      const { toPng } = await import('html-to-image');
+      const { toJpeg } = await import('html-to-image');
       const { default: jsPDF } = await import('jspdf');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
       const W = pdf.internal.pageSize.getWidth();
@@ -581,8 +581,8 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
         for (const id of ['cap-portada', ...SECCIONES.map((s) => s.id)]) {
           const el = document.getElementById(id);
           if (!el) continue;
-          const url = await toPng(el, {
-            pixelRatio: 2, backgroundColor: fondo,
+          const url = await toJpeg(el, {
+            pixelRatio: 2, quality: 0.8, backgroundColor: fondo,
             filter: (node) => !(node instanceof HTMLElement && node.dataset?.exportIgnore !== undefined),
           });
           const props = pdf.getImageProperties(url);
@@ -590,7 +590,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
 
           if (alto <= altoUtil) {
             if (y + alto > m + altoUtil && y > m) { pdf.addPage(); y = m; }
-            pdf.addImage(url, 'PNG', m, y, ancho, alto);
+            pdf.addImage(url, 'JPEG', m, y, ancho, alto);
             y += alto + 4;
           } else {
             // Sección más alta que una página: se reparte en varias
@@ -610,7 +610,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
               ctx.drawImage(img, 0, -off);
               if (off > 0) pdf.addPage();
               const h = canvas.height / pxPorMm;
-              pdf.addImage(canvas.toDataURL('image/png'), 'PNG', m, m, ancho, h);
+              pdf.addImage(canvas.toDataURL('image/jpeg', 0.8), 'JPEG', m, m, ancho, h);
               y = m + h + 4;
             }
           }
