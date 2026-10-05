@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getCapacitacionesReport } from '@/app/informes-actions';
 import {
   AlertCircle, BookOpen, Activity, CheckCircle2, FileSpreadsheet, FileDown,
-  MapPinned, Building2, Loader2, ClipboardCheck,
+  MapPinned, Building2, Loader2, ClipboardCheck, Eye, EyeOff,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -329,6 +329,9 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
 }) {
   const [resultado, setResultado] = useState<{ key: string; data?: Report; error?: string } | null>(null);
   const [exportando, setExportando] = useState<'xlsx' | 'pdf' | null>(null);
+  const [mostrarTablaCapCat, setMostrarTablaCapCat] = useState(true);
+  const [mostrarTablaCapMes, setMostrarTablaCapMes] = useState(false);
+  const [mostrarTablaActCat, setMostrarTablaActCat] = useState(true);
   const [metricaMatriz, setMetricaMatriz] = useState<'participantes' | 'sesiones'>('participantes');
 
   // Clave estable: solo recarga cuando los filtros cambian de verdad
@@ -741,11 +744,29 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
             subtitle="Participantes, sesiones y horas por categoría, evolución mensual y temas con mayor alcance.">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)] mb-2">Participantes por categoría</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-[var(--foreground)]">Participantes por categoría</p>
+                  <button
+                    onClick={() => setMostrarTablaCapCat(!mostrarTablaCapCat)}
+                    className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  >
+                    {mostrarTablaCapCat ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {mostrarTablaCapCat ? 'Ocultar tabla' : 'Ver tabla'}
+                  </button>
+                </div>
                 <HBarChart data={capCat} dataKey="participantes" nameKey="categoria" color={COLOR_CAP} label="Participantes" />
               </div>
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)] mb-2">Evolución mensual</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-[var(--foreground)]">Evolución mensual</p>
+                  <button
+                    onClick={() => setMostrarTablaCapMes(!mostrarTablaCapMes)}
+                    className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  >
+                    {mostrarTablaCapMes ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {mostrarTablaCapMes ? 'Ocultar tabla' : 'Ver tabla'}
+                  </button>
+                </div>
                 <div style={{ height: 320 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
@@ -763,13 +784,30 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
+                {mostrarTablaCapMes && (
+                  <div className="mt-4">
+                    <DataTable
+                      csvFileName="Capacitaciones_Evolucion_Mensual.csv"
+                      columns={[
+                        { key: 'mes', label: 'Mes' },
+                        { key: 'anio', label: 'Año', render: (r) => r.anio || '' },
+                        { key: 'sesiones', label: 'Sesiones', align: 'right', render: (r) => n(r.sesiones) },
+                        { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
+                        { key: 'horas', label: 'Horas', align: 'right', render: (r) => n(Number(r.horas)) },
+                      ]}
+                      rows={data.cap_por_mes}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="mt-6">
-              <DataTable
-                columns={[
-                  { key: 'categoria', label: 'Categoría' },
+            {mostrarTablaCapCat && (
+              <div className="mt-6">
+                <DataTable
+                  csvFileName="Capacitaciones_por_Categoria.csv"
+                  columns={[
+                    { key: 'categoria', label: 'Categoría' },
                   { key: 'sesiones', label: 'Sesiones', align: 'right', render: (r) => n(r.sesiones) },
                   { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
                   { key: 'pct', label: '% del total', align: 'right', render: (r) => `${n(r.pct, 1)}%` },
@@ -779,11 +817,12 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
                 ]}
                 rows={capCat}
                 footer={{
-                  categoria: 'Total', sesiones: n(k.cap_sesiones), participantes: n(k.cap_participantes), pct: '100%',
-                  horas: n(k.cap_horas), part_por_sesion: n(div(k.cap_participantes, k.cap_sesiones), 1), ips: n(k.cap_ips),
-                }}
-              />
-            </div>
+                    categoria: 'Total', sesiones: n(k.cap_sesiones), participantes: n(k.cap_participantes), pct: '100%',
+                    horas: n(k.cap_horas), part_por_sesion: n(div(k.cap_participantes, k.cap_sesiones), 1), ips: n(k.cap_ips),
+                  }}
+                />
+              </div>
+            )}
 
             {data.temas_top.length > 0 && (
               <div className="mt-6">
@@ -808,23 +847,36 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
           {/* 3. Actividades */}
           <Section id="cap-actividades" icon={<Activity size={20} />} title="Otras actividades"
             subtitle="Actividades comunitarias registradas (reuniones, ferias, cine, trámites, charlas) y su alcance.">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[var(--foreground)]">Participantes por categoría</p>
+                <button
+                  onClick={() => setMostrarTablaActCat(!mostrarTablaActCat)}
+                  className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                >
+                  {mostrarTablaActCat ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {mostrarTablaActCat ? 'Ocultar tabla' : 'Ver tabla'}
+                </button>
+              </div>
               <HBarChart data={actCat} dataKey="participantes" nameKey="categoria" color={COLOR_ACT} label="Participantes" />
-              <DataTable
-                columns={[
-                  { key: 'categoria', label: 'Categoría' },
-                  { key: 'actividades', label: 'Actividades', align: 'right', render: (r) => n(r.actividades) },
-                  { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
-                  { key: 'pct', label: '% del total', align: 'right', render: (r) => `${n(r.pct, 1)}%` },
-                  { key: 'part_por_act', label: 'Part. por actividad', align: 'right', render: (r) => n(r.part_por_act, 1) },
-                  { key: 'ips', label: 'Infoplazas', align: 'right', render: (r) => n(r.ips) },
-                ]}
-                rows={actCat}
-                footer={{
-                  categoria: 'Total', actividades: n(k.act_cantidad), participantes: n(k.act_participantes), pct: '100%',
-                  part_por_act: n(div(k.act_participantes, k.act_cantidad), 1), ips: n(k.act_ips),
-                }}
-              />
+              {mostrarTablaActCat && (
+                <DataTable
+                  csvFileName="Actividades_por_Categoria.csv"
+                  columns={[
+                    { key: 'categoria', label: 'Categoría' },
+                    { key: 'actividades', label: 'Actividades', align: 'right', render: (r) => n(r.actividades) },
+                    { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
+                    { key: 'pct', label: '% del total', align: 'right', render: (r) => `${n(r.pct, 1)}%` },
+                    { key: 'part_por_act', label: 'Part. por actividad', align: 'right', render: (r) => n(r.part_por_act, 1) },
+                    { key: 'ips', label: 'Infoplazas', align: 'right', render: (r) => n(r.ips) },
+                  ]}
+                  rows={actCat}
+                  footer={{
+                    categoria: 'Total', actividades: n(k.act_cantidad), participantes: n(k.act_participantes), pct: '100%',
+                    part_por_act: n(div(k.act_participantes, k.act_cantidad), 1), ips: n(k.act_ips),
+                  }}
+                />
+              )}
             </div>
           </Section>
 
