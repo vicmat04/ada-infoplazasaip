@@ -63,6 +63,8 @@ interface Report {
   regional_x_cap_categoria: RegCat[];
   regional_x_act_categoria: RegCat[];
   top_infoplazas: IpTot[];
+  lista_pendientes: IpSinReporte[];
+  lista_no_entrega: IpSinReporte[];
   ips_sin_reporte: IpSinReporte[];
   detalle_infoplazas?: IpTot[];
   detalle_capacitaciones?: DetalleCap[];
@@ -154,7 +156,7 @@ function Section({ id, icon, title, subtitle, actions, children }: {
   );
 }
 
-function Kpi({ label, value, detail, color }: { label: string; value: string; detail?: string; color: string }) {
+function Kpi({ label, value, detail, color, onClick, isClickable }: { label: string; value: string; detail?: React.ReactNode; color: string; onClick?: () => void; isClickable?: boolean }) {
   return (
     <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4" style={{ borderLeft: `3px solid ${color}` }}>
       <p className="text-xs text-[var(--muted)]">{label}</p>
@@ -332,6 +334,8 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
   const [mostrarTablaCapCat, setMostrarTablaCapCat] = useState(true);
   const [mostrarTablaCapMes, setMostrarTablaCapMes] = useState(false);
   const [mostrarTablaActCat, setMostrarTablaActCat] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerData, setDrawerData] = useState<any>(null);
   const [metricaMatriz, setMetricaMatriz] = useState<'participantes' | 'sesiones'>('participantes');
 
   // Clave estable: solo recarga cuando los filtros cambian de verdad
@@ -1086,6 +1090,94 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
             </p>
           </Section>
         </>
+      )}
+
+      {/* Right Drawer */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsDrawerOpen(false)} />
+          <div className="relative w-full max-w-2xl bg-[#030712] h-full border-l border-slate-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/50">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <AlertCircle className="text-[#eab308]" size={20} />
+                {drawerData?.title}
+              </h3>
+              <button onClick={() => setIsDrawerOpen(false)} className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            
+            {/* Action Bar */}
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/20">
+              <p className="text-sm text-slate-400">Total: <strong className="text-white">{drawerData?.list?.length || 0}</strong> Infoplazas</p>
+              <button 
+                onClick={() => {
+                  if (!drawerData?.list) return;
+                  const isNoEntrega = drawerData.type === 'no_entrega';
+                  const headers = ['Numero', 'Infoplaza', 'Regional', 'Provincia', 'Distrito', 'Estatus'];
+                  if (isNoEntrega) headers.push('Observacion');
+                  
+                  const rows = drawerData.list.map((ip: any) => {
+                    const r = [ip.numero, ip.nombre, ip.regional, ip.provincia, ip.distrito, ip.estado_entrega || 'Pendiente'];
+                    if (isNoEntrega) r.push(ip.motivo || '');
+                    return r;
+                  });
+                  
+                  const csvContent = [headers.join(',')]
+                    .concat(rows.map((row: any[]) => row.map(v => "").join(',')))
+                    .join('\n');
+                    
+                  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${drawerData.title.replace(/\\s+/g, '_')}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors border border-slate-700"
+              >
+                <FileDown size={16} /> Descargar CSV
+              </button>
+            </div>
+            
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {drawerData?.list?.map((ip: any) => (
+                <div key={ip.numero} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-white text-base leading-tight">
+                      <span className="text-[#eab308] mr-2">#{ip.numero}</span>
+                      {ip.nombre}
+                    </h4>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ml-3 ${drawerData.type === 'no_entrega' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                      {ip.estado_entrega || 'Pendiente'}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3 text-sm">
+                    <div>
+                      <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Regional</p>
+                      <p className="text-slate-200 font-medium">{ip.regional}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Provincia</p>
+                      <p className="text-slate-200 font-medium">{ip.provincia}</p>
+                    </div>
+                  </div>
+                  
+                  {drawerData.type === 'no_entrega' && (
+                    <div className="mt-3 pt-3 border-t border-slate-800">
+                      <p className="text-slate-500 text-xs uppercase tracking-wider mb-1">Observación</p>
+                      <p className="text-slate-300 text-sm italic">{ip.motivo || 'Sin observación'}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

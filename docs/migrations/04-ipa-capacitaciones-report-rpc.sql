@@ -177,6 +177,19 @@ BEGIN
         FROM act GROUP BY regional, cat_key) x), '[]'::json),
     'top_infoplazas', coalesce((SELECT json_agg(x) FROM (
         SELECT * FROM ip_tot ORDER BY (cap_participantes + act_participantes) DESC LIMIT 25) x), '[]'::json),
+    'lista_pendientes', coalesce((SELECT json_agg(x ORDER BY x.regional, x.numero) FROM (
+        SELECT ips.numero, ips.nombre, ips.regional, ips.provincia, ips.distrito,
+               coalesce((SELECT ctrl.estado FROM ctrl WHERE ctrl.infoplaza_numero = ips.numero LIMIT 1), 'pendiente') AS estado_entrega
+        FROM ips WHERE ips.activa
+        AND lower(coalesce((SELECT ctrl.estado FROM ctrl WHERE ctrl.infoplaza_numero = ips.numero LIMIT 1), 'pendiente')) = 'pendiente'
+    ) x), '[]'::json),
+    'lista_no_entrega', coalesce((SELECT json_agg(x ORDER BY x.regional, x.numero) FROM (
+        SELECT ips.numero, ips.nombre, ips.regional, ips.provincia, ips.distrito,
+               (SELECT ctrl.estado FROM ctrl WHERE ctrl.infoplaza_numero = ips.numero LIMIT 1) AS estado_entrega,
+               (SELECT ctrl.motivo FROM ctrl WHERE ctrl.infoplaza_numero = ips.numero LIMIT 1) AS motivo
+        FROM ips WHERE ips.activa
+        AND lower((SELECT ctrl.estado FROM ctrl WHERE ctrl.infoplaza_numero = ips.numero LIMIT 1)) = 'no entrega'
+    ) x), '[]'::json),
     'ips_sin_reporte', coalesce((SELECT json_agg(x ORDER BY x.regional, x.numero) FROM (
         SELECT ips.numero, ips.nombre, ips.regional, ips.provincia, ips.distrito,
                (SELECT ctrl.estado FROM ctrl WHERE ctrl.infoplaza_numero = ips.numero LIMIT 1) AS estado_entrega,
