@@ -736,11 +736,46 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
             subtitle="Participantes, sesiones y horas por categoría, evolución mensual y temas con mayor alcance.">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)] mb-2">Participantes por categoría</p>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-[var(--foreground)]">Participantes por categoría</p>
+                  <button
+                    onClick={() => setMostrarTablaCapCat(!mostrarTablaCapCat)}
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-lg bg-blue-600/10 border border-blue-600/20 text-blue-400 hover:bg-blue-600/20 transition-colors"
+                    data-export-ignore
+                  >
+                    {mostrarTablaCapCat ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {mostrarTablaCapCat ? 'Ocultar tabla' : 'Ver tabla'}
+                  </button>
+                </div>
                 <HBarChart data={capCat} dataKey="participantes" nameKey="categoria" color={COLOR_CAP} label="Participantes" />
+                
+                {mostrarTablaCapCat && (
+                  <div className="mt-4">
+                    <DataTable
+                      csvFileName="Capacitaciones_Participantes_Categoria.csv"
+                      columns={[
+                        { key: 'categoria', label: 'Categoría' },
+                        { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
+                        { key: 'sesiones', label: 'Sesiones', align: 'right', render: (r) => n(r.sesiones) },
+                      ]}
+                      rows={capCat}
+                    />
+                  </div>
+                )}
               </div>
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)] mb-2">Evolución mensual</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-[var(--foreground)]">Evolución mensual</p>
+                  <button
+                    onClick={() => setMostrarTablaCapMes(!mostrarTablaCapMes)}
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-lg bg-blue-600/10 border border-blue-600/20 text-blue-400 hover:bg-blue-600/20 transition-colors"
+                    data-export-ignore
+                  >
+                    {mostrarTablaCapMes ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {mostrarTablaCapMes ? 'Ocultar tabla' : 'Ver tabla'}
+                  </button>
+                </div>
                 <div style={{ height: 320 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
@@ -758,13 +793,29 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
+                
+                {mostrarTablaCapMes && (
+                  <div className="mt-4">
+                    <DataTable
+                      csvFileName="Evolucion_Mensual_Capacitaciones.csv"
+                      columns={[
+                        { key: 'mes', label: 'Mes' },
+                        { key: 'sesiones', label: 'Sesiones', align: 'right', render: (r) => n(r.sesiones) },
+                        { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
+                        { key: 'horas', label: 'Horas', align: 'right', render: (r) => n(Number(r.horas)) },
+                      ]}
+                      rows={data.cap_por_mes.map((m) => ({ ...m, mes: filters.anio ? m.mes : `${m.mes} ${m.anio}` }))}
+                    />
+                  </div>
+                )}
+              </div>
+                </div>
               </div>
             </div>
 
             <div className="mt-6">
               <DataTable
                 columns={[
-                csvFileName="Capacitaciones_por_Categoria.csv"
                   { key: 'categoria', label: 'Categoría' },
                   { key: 'sesiones', label: 'Sesiones', align: 'right', render: (r) => n(r.sesiones) },
                   { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
@@ -806,8 +857,35 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
           <Section id="cap-actividades" icon={<Activity size={20} />} title="Otras actividades"
             subtitle="Actividades comunitarias registradas (reuniones, ferias, cine, trámites, charlas) y su alcance.">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <HBarChart data={actCat} dataKey="participantes" nameKey="categoria" color={COLOR_ACT} label="Participantes" />
-              <DataTable
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-[var(--foreground)]">Participantes por categoría</p>
+                  <button
+                    onClick={() => setMostrarTablaActCat(!mostrarTablaActCat)}
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-lg bg-blue-600/10 border border-blue-600/20 text-blue-400 hover:bg-blue-600/20 transition-colors"
+                    data-export-ignore
+                  >
+                    {mostrarTablaActCat ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {mostrarTablaActCat ? 'Ocultar tabla' : 'Ver tabla'}
+                  </button>
+                </div>
+                <HBarChart data={actCat} dataKey="participantes" nameKey="categoria" color={COLOR_ACT} label="Participantes" />
+                
+                {mostrarTablaActCat && (
+                  <div className="mt-4">
+                    <DataTable
+                      csvFileName="Actividades_Participantes_Categoria_Grafico.csv"
+                      columns={[
+                        { key: 'categoria', label: 'Categoría' },
+                        { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
+                        { key: 'actividades', label: 'Actividades', align: 'right', render: (r) => n(r.actividades) },
+                      ]}
+                      rows={actCat}
+                    />
+                  </div>
+                )}
+              </div>
                 csvFileName="Actividades_por_Categoria.csv"
                 columns={[
                   { key: 'categoria', label: 'Categoría' },
