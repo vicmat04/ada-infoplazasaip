@@ -89,7 +89,7 @@ BEGIN
       count(*) FILTER (WHERE ips.activa) AS ips_activas,
       count(r.infoplaza_numero) AS ips_reportantes,
       (SELECT count(*) FROM ctrl WHERE ctrl.regional = ips.regional AND lower(ctrl.estado) = 'entregado') AS entregados,
-      (SELECT count(*) FROM ctrl WHERE ctrl.regional = ips.regional AND lower(ctrl.estado) = 'pendiente' AND ctrl.activa) AS pendientes,
+      (count(*) FILTER (WHERE ips.activa) - (SELECT count(*) FROM ctrl WHERE ctrl.regional = ips.regional AND lower(ctrl.estado) = 'entregado' AND ctrl.activa) - (SELECT count(*) FROM ctrl WHERE ctrl.regional = ips.regional AND lower(ctrl.estado) = 'no entrega' AND ctrl.activa)) AS pendientes,
       (SELECT count(*) FROM ctrl WHERE ctrl.regional = ips.regional AND lower(ctrl.estado) = 'no entrega' AND ctrl.activa) AS no_entrega
     FROM ips LEFT JOIN reportantes r ON r.infoplaza_numero = ips.numero
     GROUP BY ips.regional
@@ -129,7 +129,7 @@ BEGIN
       'srv_ips', (SELECT count(DISTINCT infoplaza_numero) FROM srv),
       'srv_promedio_por_ip', (SELECT round(avg(n)::numeric, 1) FROM (SELECT count(*) FILTER (WHERE ofrecido) n FROM srv GROUP BY infoplaza_numero) x),
       'entregados', (SELECT count(*) FROM ctrl WHERE lower(estado) = 'entregado'),
-      'pendientes', (SELECT count(*) FROM ctrl WHERE lower(estado) = 'pendiente' AND activa),
+      'pendientes', ((SELECT count(*) FROM ips WHERE activa) - (SELECT count(*) FROM ctrl WHERE lower(estado) = 'entregado' AND activa) - (SELECT count(*) FROM ctrl WHERE lower(estado) = 'no entrega' AND activa)),
       'no_entrega', (SELECT count(*) FROM ctrl WHERE lower(estado) = 'no entrega' AND activa)
     ),
     'cap_por_categoria', coalesce((SELECT json_agg(x ORDER BY x.participantes DESC) FROM (
