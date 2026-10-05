@@ -19,7 +19,7 @@ import CuatrimestreGrowthTable from '../components/dashboard/CuatrimestreGrowthT
 import CuatrimestreAnalytics from '../components/dashboard/CuatrimestreAnalytics';
 import CapacitacionesAnalytics from '../components/dashboard/CapacitacionesAnalytics';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { getDashboardData, getInfoplazasCatalog, getAvailablePeriods } from './actions';
+import { getDashboardData, getInfoplazasCatalog, getAvailablePeriods, getUserProfile } from './actions';
 import { 
   Activity, 
   Users, 
@@ -42,6 +42,7 @@ interface InfoplazaItem {
 
 export default function Page() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -69,6 +70,20 @@ export default function Page() {
   }, []); 
   
   // Filtros activos (Año 2026 por defecto, actualizado dinámicamente al cargar periodos)
+
+  // Auth Fetch
+  useEffect(() => {
+    getUserProfile().then((res) => {
+      if (res?.success) {
+        if (res.data) setUserProfile(res.data.profile);
+        // Optional: auto-apply regional filter based on profile
+        // if (res.data.profile?.regional && res.data.profile?.rol !== 'admin') {
+        //   setFilters(prev => ({ ...prev, regional: res.data.profile.regional }));
+        // }
+      }
+    });
+  }, []);
+
   const [filters, setFilters] = useState({
     anio: 2026,
     mes: '',
@@ -155,7 +170,7 @@ export default function Page() {
         setFetchError(err?.message || 'Error catastrófico de red');
       }
     });
-  }, [filters, allInfoplazas]);
+  }, [filters, allInfoplazas, isCatalogLoading, fetchError]);
 
   const toggleTheme = () => {
     if (theme === 'dark') {

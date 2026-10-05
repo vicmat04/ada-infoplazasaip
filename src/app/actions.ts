@@ -1,5 +1,8 @@
 'use server';
 
+import { createClient } from '@/lib/supabase/server';
+
+
 import { getExecutiveDashboardSnapshot, DashboardFilters, supabaseAdmin, getDashboardRawData as getRawData, fetchAllRows } from '../lib/dashboard/executive-services';
 import { supabase } from '../lib/supabase';
 
@@ -611,5 +614,30 @@ export async function getCuatrimestreData(filters: DashboardFilters, anios: numb
   } catch (error: any) {
     console.error('Error en Server Action getCuatrimestreData:', error);
     return { success: false, error: error.message || 'Error al obtener datos de cuatrimestres' };
+  }
+}
+
+
+export async function getUserProfile() {
+  try {
+    const supabaseServer = await createClient();
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) return { success: false, error: 'No autorizado' };
+
+    const { data: profile, error } = await supabaseServer
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching profile:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: { user, profile } };
+  } catch (error: any) {
+    console.error('Error in getUserProfile:', error);
+    return { success: false, error: error.message };
   }
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Sun, Moon, Bell, Wifi, WifiOff, Menu, Calendar } from 'lucide-react';
+import { Sun, Moon, Bell, Wifi, WifiOff, Menu, Calendar, User, LogOut } from 'lucide-react';
+import { logout } from '../../app/login/actions';
 import { supabase } from '../../lib/supabase';
 import { getAlertasOperativas } from '../../app/actions';
 import NotificationPanel from './NotificationPanel';
@@ -14,6 +15,7 @@ interface TopbarProps {
   ultimoCorteDate?: string;
   activeRegional?: string;
   onNavigateToSync?: (anchor: string) => void;
+  userProfile?: any;
 }
 
 const formatCorteDate = (dateStr?: string) => {
@@ -36,7 +38,7 @@ const formatCorteDate = (dateStr?: string) => {
   }
 };
 
-export default function Topbar({ theme, toggleTheme, title, onMenuClick, ultimoCorteDate, activeRegional = '', onNavigateToSync }: TopbarProps) {
+export default function Topbar({ theme, toggleTheme, title, onMenuClick, ultimoCorteDate, activeRegional = '', onNavigateToSync, userProfile }: TopbarProps) {
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [badgeColor, setBadgeColor] = useState<'red' | 'amber' | 'none'>('none');
@@ -162,6 +164,29 @@ export default function Topbar({ theme, toggleTheme, title, onMenuClick, ultimoC
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
+        
+          {/* Menu de Usuario */}
+          <div className="flex items-center gap-3 pl-3 ml-1 border-l border-white/10">
+            <div className="hidden sm:flex flex-col items-end justify-center">
+              <span className="text-[13px] font-bold text-white leading-tight">
+                {userProfile ? userProfile.nombre || 'Usuario' : 'Cargando...'}
+              </span>
+              <span className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">
+                {userProfile ? userProfile.rol || 'admin' : ''}
+              </span>
+            </div>
+            
+            <form action={logout} className="m-0 p-0 flex">
+              <button 
+                type="submit"
+                className="p-2 rounded-xl border border-[var(--card-border)] bg-blue-600/10 hover:bg-rose-600/20 text-blue-400 hover:text-rose-400 hover:border-rose-500/30 transition-all flex items-center justify-center"
+                title="Cerrar Sesión"
+              >
+                <LogOut size={16} className="ml-0.5" />
+              </button>
+            </form>
+          </div>
+
         </div>
       </header>
 
