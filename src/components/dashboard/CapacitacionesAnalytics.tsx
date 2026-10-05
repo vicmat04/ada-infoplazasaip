@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getCapacitacionesReport } from '@/app/informes-actions';
 import {
-  AlertCircle, BookOpen, Activity, CheckCircle2, FileSpreadsheet, FileDown,
+  AlertCircle, BookOpen, Activity, CheckCircle2, FileSpreadsheet, FileDown, Eye, EyeOff,
   MapPinned, Building2, Loader2, ClipboardCheck,
 } from 'lucide-react';
 import {
@@ -80,6 +80,33 @@ const COLOR_HORAS = '#0ea5e9';
 en es "Otra/Otras/Otro" (case-insensitive) */
 const esOtra = (categoria: string) => /^otra?s?$/i.test(categoria?.trim() || '');
 
+/** Exporta datos a CSV */
+const exportarCSV = (datos: any[], nombreArchivo: string, columnas?: { key: string; label: string }[]) => {
+  if (!datos || datos.length === 0) return;
+  
+  const cols = columnas || Object.keys(datos[0]).map(k => ({ key: k, label: k }));
+  const headers = cols.map(c => c.label).join(",");
+  const rows = datos.map(row => 
+    cols.map(c => {
+      let val = String(row[c.key] ?? "");
+      if (val.includes(",") || val.includes("\"") || val.includes("
+")) {
+        val = "\""+val.replace(/"/g,"\"\"") + "\"";
+      }
+      return val;
+    }).join(",")
+  ).join("
+");
+  const csv = headers+"
+"+rows;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = nombreArchivo;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
 const n = (v: number | null | undefined, dec = 0) =>
   (Number(v) || 0).toLocaleString('es-PA', { maximumFractionDigits: dec, minimumFractionDigits: dec });
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
@@ -143,9 +170,27 @@ function Kpi({ label, value, detail, color }: { label: string; value: string; de
 
 type Col<T> = { key: string; label: string; align?: 'left' | 'right'; render?: (r: T) => React.ReactNode };
 
-function DataTable<T extends object>({ columns, rows, footer }: { columns: Col<T>[]; rows: T[]; footer?: Record<string, React.ReactNode> }) {
+function DataTable<T extends object>({ columns, rows, footer, csvFileName, csvData }: { columns: Col<T>[]; rows: T[]; footer?: Record<string, React.ReactNode>; csvFileName?: string; csvData?: any[] }) {
+  const handleExportCSV = () => {
+    if (!csvFileName) return;
+    const dataToExport = csvData || rows;
+    exportarCSV(dataToExport, csvFileName, columns.map(c => ({ key: c.key, label: c.label })));
+  };
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
+    <div>
+      {csvFileName && (
+        <div className="flex justify-end mb-2" data-export-ignore>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600/10 border border-emerald-600/20 text-emerald-400 hover:bg-emerald-600/20 transition-colors"
+          >
+            <FileSpreadsheet size={14} />
+            Descargar CSV
+          </button>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-[var(--card-bg)] backdrop-blur">
           <tr className="text-[var(--muted)] text-xs">
@@ -180,6 +225,7 @@ function DataTable<T extends object>({ columns, rows, footer }: { columns: Col<T
               {columns.map((c) => (
                 <td key={c.key} className={`px-3 py-2 ${c.align === 'right' ? 'text-right tabular-nums whitespace-nowrap' : ''}`}>
                   {footer[c.key] ?? ''}
+    </div>
                 </td>
               ))}
             </tr>
@@ -281,6 +327,9 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
 }) {
   const [resultado, setResultado] = useState<{ key: string; data?: Report; error?: string } | null>(null);
   const [exportando, setExportando] = useState<'xlsx' | 'pdf' | null>(null);
+  const [mostrarTablaCapCat, setMostrarTablaCapCat] = useState(true);
+  const [mostrarTablaCapMes, setMostrarTablaCapMes] = useState(false);
+  const [mostrarTablaActCat, setMostrarTablaActCat] = useState(true);
   const [metricaMatriz, setMetricaMatriz] = useState<'participantes' | 'sesiones'>('participantes');
 
   // Clave estable: solo recarga cuando los filtros cambian de verdad
@@ -715,6 +764,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
             <div className="mt-6">
               <DataTable
                 columns={[
+                csvFileName="Capacitaciones_por_Categoria.csv"
                   { key: 'categoria', label: 'Categoría' },
                   { key: 'sesiones', label: 'Sesiones', align: 'right', render: (r) => n(r.sesiones) },
                   { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
@@ -736,6 +786,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
                 <p className="text-sm font-medium text-[var(--foreground)] mb-2">Temas con más participantes</p>
                 <div data-scroll-table style={{ maxHeight: 360, overflowY: 'auto' }}>
                   <DataTable
+                    csvFileName="Top_Temas_Capacitaciones.csv"
                     columns={[
                       { key: 'tema', label: 'Tema' },
                       { key: 'categoria', label: 'Categoría' },
@@ -757,6 +808,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <HBarChart data={actCat} dataKey="participantes" nameKey="categoria" color={COLOR_ACT} label="Participantes" />
               <DataTable
+                csvFileName="Actividades_por_Categoria.csv"
                 columns={[
                   { key: 'categoria', label: 'Categoría' },
                   { key: 'actividades', label: 'Actividades', align: 'right', render: (r) => n(r.actividades) },
@@ -940,6 +992,8 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
             <p className="text-sm font-medium text-[var(--foreground)] mb-2">Mayor número de participantes (capacitaciones y actividades)</p>
             <div data-scroll-table style={{ maxHeight: 420, overflowY: 'auto' }}>
               <DataTable
+                csvFileName="Top_Infoplazas.csv"
+              csvFileName="Servicios_Personalizados.csv"
                 columns={[
                   { key: 'numero', label: 'N.º', align: 'right' },
                   { key: 'nombre', label: 'Infoplaza' },
@@ -963,6 +1017,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
             ) : (
               <div data-scroll-table style={{ maxHeight: 320, overflowY: 'auto' }}>
                 <DataTable
+                  csvFileName="Infoplazas_sin_Reporte.csv"
                   columns={[
                     { key: 'numero', label: 'N.º', align: 'right' },
                     { key: 'nombre', label: 'Infoplaza' },
