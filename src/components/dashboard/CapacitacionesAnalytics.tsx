@@ -504,7 +504,6 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
         Infoplazas: c.ips, '% participantes': +pct(c.participantes, kk.cap_participantes).toFixed(1),
       })));
       add('Cap. por mes', d.cap_por_mes.map((m) => ({ Año: m.anio, Mes: m.mes, Sesiones: m.sesiones, Participantes: m.participantes, Horas: Number(m.horas) })));
-      add('Temas principales', d.temas_top.map((t) => ({ Tema: t.tema, Categoría: t.categoria, Sesiones: t.sesiones, Participantes: t.participantes, Horas: Number(t.horas), Infoplazas: t.ips })));
       add('Act. por categoría', d.act_por_categoria.map((a) => ({
         Categoría: a.categoria, Actividades: a.actividades, Participantes: a.participantes, Infoplazas: a.ips,
         '% participantes': +pct(a.participantes, kk.act_participantes).toFixed(1),
@@ -745,7 +744,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
 
           {/* 2. Capacitaciones */}
           <Section id="cap-capacitaciones" icon={<BookOpen size={20} />} title="Capacitaciones"
-            subtitle="Participantes, sesiones y horas por categoría, evolución mensual y temas con mayor alcance.">
+            subtitle="Participantes, sesiones y horas por categoría y evolución mensual.">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -828,24 +827,7 @@ export default function CapacitacionesAnalytics({ filters, allInfoplazas = [] }:
               </div>
             )}
 
-            {data.temas_top.length > 0 && (
-              <div className="mt-6">
-                <p className="text-sm font-medium text-[var(--foreground)] mb-2">Temas con más participantes</p>
-                <div data-scroll-table style={{ maxHeight: 360, overflowY: 'auto' }}>
-                  <DataTable
-                    columns={[
-                      { key: 'tema', label: 'Tema' },
-                      { key: 'categoria', label: 'Categoría' },
-                      { key: 'sesiones', label: 'Sesiones', align: 'right', render: (r) => n(r.sesiones) },
-                      { key: 'participantes', label: 'Participantes', align: 'right', render: (r) => n(r.participantes) },
-                      { key: 'horas', label: 'Horas', align: 'right', render: (r) => n(Number(r.horas)) },
-                      { key: 'ips', label: 'Infoplazas', align: 'right', render: (r) => n(r.ips) },
-                    ]}
-                    rows={data.temas_top}
-                  />
-                </div>
-              </div>
-            )}
+            
           </Section>
 
           {/* 3. Actividades */}
