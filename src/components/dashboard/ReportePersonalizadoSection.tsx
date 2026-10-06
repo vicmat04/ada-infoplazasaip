@@ -2,19 +2,9 @@
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { 
-  Download, 
-  Filter, 
-  Calendar, 
-  MapPin, 
-  RefreshCw, 
-  Search, 
-  Layers, 
-  SlidersHorizontal,
-  ChevronLeft,
-  ChevronRight,
-  Database,
-  Info,
+import {
+  Download, Filter, Calendar, MapPin, RefreshCw, Search, Layers, SlidersHorizontal,
+  ChevronLeft, ChevronRight, Database, Lock, Rows3, Check,
 } from 'lucide-react';
 import { getCustomReportDataV2 } from '../../app/actions';
 import type { RangoMeses } from './FiltersBar';
@@ -38,49 +28,108 @@ interface ReportePersonalizadoSectionProps {
   rango: RangoMeses | null;
 }
 
-// Métricas de datos opcionales a seleccionar por el usuario
-// (Ubicación, Período y Total Visitas Reales son columnas FIJAS obligatorias)
-interface MetricColumnOption {
-  key: string;
-  label: string;
-  category: 'genero' | 'tipo_usuario' | 'servicios';
-  defaultSelected: boolean;
-}
+/* ───────────────────────── Configuración ───────────────────────── */
 
-const METRIC_COLUMN_OPTIONS: MetricColumnOption[] = [
-  // Género
-  { key: 'masculino', label: 'Masculino', category: 'genero', defaultSelected: true },
-  { key: 'femenino', label: 'Femenino', category: 'genero', defaultSelected: true },
+type Grupo = 'genero' | 'tipo_usuario' | 'servicios';
 
-  // Tipo de Usuario
-  { key: 'primaria', label: 'Primaria', category: 'tipo_usuario', defaultSelected: true },
-  { key: 'secundaria', label: 'Secundaria', category: 'tipo_usuario', defaultSelected: true },
-  { key: 'universitario', label: 'Universitario', category: 'tipo_usuario', defaultSelected: true },
-  { key: 'docente', label: 'Docente', category: 'tipo_usuario', defaultSelected: true },
-  { key: 'tercera_edad', label: 'Tercera Edad', category: 'tipo_usuario', defaultSelected: true },
-  { key: 'publico_general', label: 'Público General', category: 'tipo_usuario', defaultSelected: true },
+const GRUPOS: { id: Grupo; titulo: string; color: string }[] = [
+  { id: 'genero', titulo: 'Género', color: '#a78bfa' },
+  { id: 'tipo_usuario', titulo: 'Tipo de usuario', color: '#38bdf8' },
+  { id: 'servicios', titulo: 'Servicios', color: '#fbbf24' },
+];
 
-  // Servicios
-  { key: 'uso_de_pc', label: 'Uso de PC', category: 'servicios', defaultSelected: true },
-  { key: 'copia', label: 'Copias', category: 'servicios', defaultSelected: true },
-  { key: 'impresion', label: 'Impresión', category: 'servicios', defaultSelected: true },
-  { key: 'consulta', label: 'Consultas', category: 'servicios', defaultSelected: true },
-  { key: 'taller', label: 'Talleres', category: 'servicios', defaultSelected: true },
-  { key: 'reunion', label: 'Reuniones', category: 'servicios', defaultSelected: true },
-  { key: 'otros', label: 'Otros Servicios', category: 'servicios', defaultSelected: true },
+const METRICAS: { key: string; label: string; grupo: Grupo }[] = [
+  { key: 'masculino', label: 'Masculino', grupo: 'genero' },
+  { key: 'femenino', label: 'Femenino', grupo: 'genero' },
+  { key: 'primaria', label: 'Primaria', grupo: 'tipo_usuario' },
+  { key: 'secundaria', label: 'Secundaria', grupo: 'tipo_usuario' },
+  { key: 'universitario', label: 'Universitario', grupo: 'tipo_usuario' },
+  { key: 'docente', label: 'Docente', grupo: 'tipo_usuario' },
+  { key: 'tercera_edad', label: 'Tercera edad', grupo: 'tipo_usuario' },
+  { key: 'publico_general', label: 'Público general', grupo: 'tipo_usuario' },
+  { key: 'uso_de_pc', label: 'Uso de PC', grupo: 'servicios' },
+  { key: 'copia', label: 'Copias', grupo: 'servicios' },
+  { key: 'impresion', label: 'Impresión', grupo: 'servicios' },
+  { key: 'consulta', label: 'Consultas', grupo: 'servicios' },
+  { key: 'taller', label: 'Talleres', grupo: 'servicios' },
+  { key: 'reunion', label: 'Reuniones', grupo: 'servicios' },
+  { key: 'otros', label: 'Otros servicios', grupo: 'servicios' },
+];
+
+const ATAJOS: { id: string; label: string; grupos: Grupo[] }[] = [
+  { id: 'completo', label: 'Completo', grupos: ['genero', 'tipo_usuario', 'servicios'] },
+  { id: 'genero', label: 'Solo género', grupos: ['genero'] },
+  { id: 'tipo', label: 'Solo tipo de usuario', grupos: ['tipo_usuario'] },
+  { id: 'servicios', label: 'Solo servicios', grupos: ['servicios'] },
+  { id: 'total', label: 'Solo total', grupos: [] },
+];
+
+type Nivel = 'mes_ip' | 'ip' | 'provincia' | 'regional';
+
+type Fila = Record<string, string | number | null>;
+
+interface ColFija { key: string; label: string; ancho?: string; numerica?: boolean; ocultarMovil?: boolean }
+
+const NIVELES: { id: Nivel; label: string; ayuda: string; fijas: ColFija[] }[] = [
+  {
+    id: 'mes_ip', label: 'Mes por Infoplaza', ayuda: 'Una fila por cada Infoplaza y mes.',
+    fijas: [
+      { key: 'numero_infoplaza', label: 'N.º' },
+      { key: 'nombre_infoplaza', label: 'Infoplaza' },
+      { key: 'regional', label: 'Regional', ocultarMovil: true },
+      { key: 'provincia', label: 'Provincia', ocultarMovil: true },
+      { key: 'distrito', label: 'Distrito', ocultarMovil: true },
+      { key: 'corregimiento', label: 'Corregimiento', ocultarMovil: true },
+      { key: 'anio', label: 'Año' },
+      { key: 'mes', label: 'Mes' },
+    ],
+  },
+  {
+    id: 'ip', label: 'Infoplaza', ayuda: 'Una fila por Infoplaza con el total del período.',
+    fijas: [
+      { key: 'numero_infoplaza', label: 'N.º' },
+      { key: 'nombre_infoplaza', label: 'Infoplaza' },
+      { key: 'regional', label: 'Regional', ocultarMovil: true },
+      { key: 'provincia', label: 'Provincia', ocultarMovil: true },
+      { key: 'distrito', label: 'Distrito', ocultarMovil: true },
+      { key: 'corregimiento', label: 'Corregimiento', ocultarMovil: true },
+      { key: 'meses', label: 'Meses con datos', numerica: true },
+    ],
+  },
+  {
+    id: 'provincia', label: 'Provincia', ayuda: 'Una fila por provincia con el total del período.',
+    fijas: [
+      { key: 'regional', label: 'Regional' },
+      { key: 'provincia', label: 'Provincia' },
+      { key: 'infoplazas', label: 'Infoplazas', numerica: true },
+    ],
+  },
+  {
+    id: 'regional', label: 'Regional', ayuda: 'Una fila por regional con el total del período.',
+    fijas: [
+      { key: 'regional', label: 'Regional' },
+      { key: 'infoplazas', label: 'Infoplazas', numerica: true },
+    ],
+  },
 ];
 
 const MESES_NOMBRES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
+
+const num = (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0);
+const fmt = (v: unknown) => num(v).toLocaleString('es-PA');
+const PAGE_SIZE = 15;
+
+/* ───────────────────────── Componente ───────────────────────── */
 
 export default function ReportePersonalizadoSection({ allInfoplazas, filters, rango }: ReportePersonalizadoSectionProps) {
   const [isPending, startTransition] = useTransition();
 
-  // Período y ubicación vienen de la barra de filtros global (un solo lugar para filtrar)
-  const mesLabel = (v: number) => `${MESES_NOMBRES[(v % 100) - 1]} ${Math.floor(v / 100)}`;
+  // Período y ubicación vienen de la barra de filtros global
   const resumenFiltros = useMemo(() => {
+    const mesLabel = (v: number) => `${MESES_NOMBRES[(v % 100) - 1]} ${Math.floor(v / 100)}`;
     let periodo: string;
     if (rango) periodo = `${mesLabel(Math.min(rango.desde, rango.hasta))} a ${mesLabel(Math.max(rango.desde, rango.hasta))}`;
     else if (filters.mes && !filters.mes.startsWith('Q')) periodo = `${filters.mes} ${filters.anio || '(todos los años)'}`;
@@ -96,54 +145,44 @@ export default function ReportePersonalizadoSection({ allInfoplazas, filters, ra
     return { periodo, ambito };
   }, [filters, rango, allInfoplazas]);
 
-  // 3. Estado de Métricas Opcionales Seleccionables
-  const [selectedMetrics, setSelectedMetrics] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    METRIC_COLUMN_OPTIONS.forEach(col => {
-      initial[col.key] = col.defaultSelected;
-    });
-    return initial;
+  /* ── Opciones del reporte ── */
+  const [nivel, setNivel] = useState<Nivel>('mes_ip');
+  const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set(METRICAS.map((m) => m.key)));
+
+  const alternar = (key: string) => setSeleccion((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
   });
+  const alternarGrupo = (grupo: Grupo) => setSeleccion((prev) => {
+    const keys = METRICAS.filter((m) => m.grupo === grupo).map((m) => m.key);
+    const todas = keys.every((k) => prev.has(k));
+    const next = new Set(prev);
+    keys.forEach((k) => (todas ? next.delete(k) : next.add(k)));
+    return next;
+  });
+  const aplicarAtajo = (grupos: Grupo[]) => setSeleccion(new Set(METRICAS.filter((m) => grupos.includes(m.grupo)).map((m) => m.key)));
+  const atajoActivo = ATAJOS.find((a) => {
+    const esperadas = METRICAS.filter((m) => a.grupos.includes(m.grupo)).map((m) => m.key);
+    return esperadas.length === seleccion.size && esperadas.every((k) => seleccion.has(k));
+  })?.id;
 
-  const toggleMetric = (key: string) => {
-    setSelectedMetrics(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
+  const metricasActivas = useMemo(() => METRICAS.filter((m) => seleccion.has(m.key)), [seleccion]);
+  const nivelCfg = NIVELES.find((n) => n.id === nivel)!;
 
-  const toggleGroup = (category: string) => {
-    const keys = METRIC_COLUMN_OPTIONS.filter(c => c.category === category).map(c => c.key);
-    const allSelected = keys.every(k => selectedMetrics[k]);
-    setSelectedMetrics(prev => {
-      const next = { ...prev };
-      keys.forEach(k => { next[k] = !allSelected; });
-      return next;
-    });
-  };
-
-  const isGroupFullySelected = (category: string) => {
-    const keys = METRIC_COLUMN_OPTIONS.filter(c => c.category === category).map(c => c.key);
-    return keys.length > 0 && keys.every(k => selectedMetrics[k]);
-  };
-
-  // 4. Resultado del Dataset Generado
-  const [reportRows, setReportRows] = useState<any[]>([]);
+  /* ── Datos ── */
+  const [filasBase, setFilasBase] = useState<Fila[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Paginación de la Vista Previa
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
 
-  // Se regenera automáticamente cada vez que cambian los filtros superiores
   const filtrosKey = JSON.stringify({ filters, rango });
   useEffect(() => {
     let vivo = true;
     startTransition(async () => {
       const res = await getCustomReportDataV2({ ...filters, desde: rango?.desde ?? null, hasta: rango?.hasta ?? null });
       if (!vivo) return;
-      setReportRows(res.success ? res.data : []);
+      setFilasBase(res.success ? (res.data as Fila[]) : []);
       setHasSearched(true);
       setCurrentPage(1);
     });
@@ -151,235 +190,253 @@ export default function ReportePersonalizadoSection({ allInfoplazas, filters, ra
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosKey]);
 
-  // Métricas seleccionadas activas
-  const activeMetrics = useMemo(() => {
-    return METRIC_COLUMN_OPTIONS.filter(col => selectedMetrics[col.key]);
-  }, [selectedMetrics]);
-
-  // Filtrar filas por búsqueda rápida
-  const filteredRows = useMemo(() => {
-    if (!searchQuery) return reportRows;
-    const q = searchQuery.toLowerCase().trim();
-    return reportRows.filter(row => {
-      return (
-        row.nombre_infoplaza?.toLowerCase().includes(q) ||
-        row.numero_infoplaza?.toString().includes(q) ||
-        row.regional?.toLowerCase().includes(q) ||
-        row.provincia?.toLowerCase().includes(q) ||
-        row.distrito?.toLowerCase().includes(q)
-      );
+  // Totales del período para mostrar junto a cada opción
+  const totalesPorMetrica = useMemo(() => {
+    const t: Record<string, number> = { total_visitas: 0 };
+    METRICAS.forEach((m) => { t[m.key] = 0; });
+    filasBase.forEach((f) => {
+      METRICAS.forEach((m) => { t[m.key] += num(f[m.key]); });
+      t.total_visitas += num(f.total_visitas);
     });
-  }, [reportRows, searchQuery]);
+    return t;
+  }, [filasBase]);
 
-  // Paginación
-  const totalPages = Math.ceil(filteredRows.length / pageSize) || 1;
+  // Agregación según el nivel de detalle
+  const filasNivel = useMemo<Fila[]>(() => {
+    if (nivel === 'mes_ip') return filasBase;
+    const clave = (f: Fila) =>
+      nivel === 'ip' ? String(f.numero_infoplaza)
+      : nivel === 'provincia' ? `${f.regional}|${f.provincia}`
+      : String(f.regional);
+    const grupos = new Map<string, { fila: Fila; ips: Set<unknown>; meses: Set<string> }>();
+    filasBase.forEach((f) => {
+      const k = clave(f);
+      let g = grupos.get(k);
+      if (!g) {
+        const base: Fila = {
+          regional: f.regional, provincia: f.provincia, distrito: f.distrito, corregimiento: f.corregimiento,
+          numero_infoplaza: f.numero_infoplaza, nombre_infoplaza: f.nombre_infoplaza, total_visitas: 0,
+        };
+        METRICAS.forEach((m) => { base[m.key] = 0; });
+        g = { fila: base, ips: new Set(), meses: new Set() };
+        grupos.set(k, g);
+      }
+      METRICAS.forEach((m) => { g!.fila[m.key] = num(g!.fila[m.key]) + num(f[m.key]); });
+      g.fila.total_visitas = num(g.fila.total_visitas) + num(f.total_visitas);
+      g.ips.add(f.numero_infoplaza);
+      g.meses.add(`${f.anio}-${f.mes_numero}`);
+    });
+    const salida: Fila[] = Array.from(grupos.values()).map((g) => ({ ...g.fila, infoplazas: g.ips.size, meses: g.meses.size }));
+    return salida.sort((a, b) =>
+      nivel === 'ip'
+        ? String(a.regional).localeCompare(String(b.regional)) || num(a.numero_infoplaza) - num(b.numero_infoplaza)
+        : String(a.regional).localeCompare(String(b.regional)) || String(a.provincia).localeCompare(String(b.provincia))
+    );
+  }, [filasBase, nivel]);
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return filasNivel;
+    return filasNivel.filter((row) =>
+      ['nombre_infoplaza', 'numero_infoplaza', 'regional', 'provincia', 'distrito', 'corregimiento']
+        .some((k) => String(row[k] ?? '').toLowerCase().includes(q))
+    );
+  }, [filasNivel, searchQuery]);
+
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE) || 1;
   const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredRows.slice(start, start + pageSize);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
   }, [filteredRows, currentPage]);
 
-  // Exportar a Excel (SIEMPRE incluye Identificación Fija + Métricas Opcionales + Total Visitas al Final)
+  // Totales de lo que se ve (respeta la búsqueda)
+  const totalesTabla = useMemo(() => {
+    const t: Record<string, number> = { total_visitas: 0 };
+    metricasActivas.forEach((m) => { t[m.key] = 0; });
+    filteredRows.forEach((f) => {
+      metricasActivas.forEach((m) => { t[m.key] += num(f[m.key]); });
+      t.total_visitas += num(f.total_visitas);
+    });
+    return t;
+  }, [filteredRows, metricasActivas]);
+
+  /* ── Exportar ── */
   const handleExportExcel = () => {
     if (filteredRows.length === 0) return;
-
-    // 1. Cabeceras Fijas Obligatorias de Identificación
-    const fixedHeaders = [
-      'Regional',
-      'Número Infoplaza',
-      'Infoplaza',
-      'Año',
-      'Mes',
-      'Provincia',
-      'Distrito',
-      'Corregimiento'
+    const cabeceras = [...nivelCfg.fijas.map((c) => c.label), ...metricasActivas.map((m) => m.label), 'Total visitas'];
+    const datos = filteredRows.map((row) => [
+      ...nivelCfg.fijas.map((c) => (c.numerica ? num(row[c.key]) : row[c.key] ?? '')),
+      ...metricasActivas.map((m) => num(row[m.key])),
+      num(row.total_visitas),
+    ]);
+    const filaTotal = [
+      'Total', ...nivelCfg.fijas.slice(1).map(() => ''),
+      ...metricasActivas.map((m) => totalesTabla[m.key]), totalesTabla.total_visitas,
     ];
-
-    // 2. Cabeceras de métricas desglosadas seleccionadas
-    const metricHeaders = activeMetrics.map(m => m.label);
-
-    // 3. Cabecera Fija Obligatoria Final: Total Visitas
-    const allHeaders = [...fixedHeaders, ...metricHeaders, 'Total Visitas'];
-
-    // 4. Construir Array de Datos
-    const exportData = filteredRows.map(row => {
-      const fixedVals = [
-        row.regional ?? '',
-        row.numero_infoplaza ?? '',
-        row.nombre_infoplaza ?? '',
-        row.anio ?? '',
-        row.mes ?? '',
-        row.provincia ?? '',
-        row.distrito ?? '',
-        row.corregimiento ?? ''
-      ];
-
-      const metricVals = activeMetrics.map(m => {
-        const val = row[m.key];
-        return typeof val === 'number' ? val : 0;
-      });
-
-      const totalVal = typeof row.total_visitas === 'number' ? row.total_visitas : 0;
-
-      return [...fixedVals, ...metricVals, totalVal];
-    });
-
-    // 5. Generar archivo Excel
-    const worksheet = XLSX.utils.aoa_to_sheet([allHeaders, ...exportData]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte');
-    
-    const slug = `${resumenFiltros.periodo}_${resumenFiltros.ambito}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_');
-    XLSX.writeFile(workbook, `Reporte_Infoplazas_${slug}.xlsx`);
+    const ws = XLSX.utils.aoa_to_sheet([cabeceras, ...datos, filaTotal]);
+    ws['!cols'] = cabeceras.map((c) => ({ wch: Math.max(10, c.length + 2) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Período', resumenFiltros.periodo],
+      ['Ámbito', resumenFiltros.ambito],
+      ['Nivel de detalle', nivelCfg.label],
+      ['Búsqueda aplicada', searchQuery || '(ninguna)'],
+      ['Generado', new Date().toLocaleString('es-PA')],
+    ]), 'Filtros');
+    const slug = `${nivelCfg.label}_${resumenFiltros.periodo}_${resumenFiltros.ambito}`
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_');
+    XLSX.writeFile(wb, `Reporte_Infoplazas_${slug}.xlsx`);
   };
+
+  const columnasTotales = nivelCfg.fijas.length + metricasActivas.length + 1;
+
+  /* ───────────── Render ───────────── */
 
   return (
     <div className="grid grid-cols-1 min-w-0 gap-6 w-full max-w-full box-border">
-      {/* CARD DE CONFIGURACIÓN Y FILTROS */}
       <Card className="animate-fade-in w-full max-w-full box-border overflow-hidden">
         <CardHeader className="border-b border-[var(--card-border)] pb-4">
-          <CardTitle className="text-base font-bold text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <span className="flex items-center gap-2">
-              <SlidersHorizontal className="text-blue-500" size={20} />
-              Configuración del Reporte
-            </span>
-            <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono font-medium">
-              1 Fila por Mes e Infoplaza
-            </span>
+          <CardTitle className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
+            <SlidersHorizontal className="text-blue-500" size={20} />
+            Configuración del reporte
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-2 space-y-6 w-full max-w-full box-border">
-          
-          {/* FILTROS APLICADOS (vienen de la barra superior) */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border border-[var(--card-border)] flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
-            <span className="flex items-center gap-1.5 text-[var(--muted)] text-xs shrink-0">
-              <Filter size={14} className="text-blue-400" /> Filtros aplicados
+
+        <CardContent className="pt-4 space-y-6 w-full max-w-full box-border">
+          {/* Filtros aplicados (vienen de la barra superior) */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="flex items-center gap-1.5 text-[var(--muted)]">
+              <Filter size={13} className="text-blue-400" /> Filtros aplicados:
             </span>
-            <div className="flex flex-wrap gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600/15 text-blue-300 border border-blue-500/30 text-xs font-medium">
-                <Calendar size={12} /> {resumenFiltros.periodo}
-              </span>
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600/15 text-indigo-300 border border-indigo-500/30 text-xs font-medium">
-                <MapPin size={12} /> {resumenFiltros.ambito}
-              </span>
-            </div>
-            <span className="text-xs text-[var(--muted)] sm:ml-auto">
-              Cámbialos en la barra superior; para varios meses o años activa &quot;Rango de meses&quot; en el Período.
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600/15 text-blue-300 border border-blue-500/30 font-medium">
+              <Calendar size={12} /> {resumenFiltros.periodo}
             </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600/15 text-indigo-300 border border-indigo-500/30 font-medium">
+              <MapPin size={12} /> {resumenFiltros.ambito}
+            </span>
+            <span className="text-[var(--muted)]">Se cambian en la barra superior.</span>
           </div>
 
-          {/* 3. AVISO INFORMATIVO DE COLUMNAS OBLIGATORIAS E INAMOVIBLES */}
-          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3 text-xs text-blue-300 w-full max-w-full box-border">
-            <Info size={16} className="text-blue-400 mt-0.5 shrink-0" />
-            <div>
-              <strong className="text-white block font-semibold mb-0.5">Columnas Fijas Obligatorias:</strong>
-              Las columnas <span className="text-white font-mono font-medium">Regional, N° Infoplaza, Infoplaza, Año, Mes, Provincia, Distrito, Corregimiento y Total Visitas</span> son inamovibles y siempre formarán parte del reporte. Usá los checkboxes a continuación para seleccionar qué opciones deseas incluir.
+          {/* 1. Nivel de detalle */}
+          <section aria-labelledby="rp-nivel">
+            <h4 id="rp-nivel" className="text-xs font-semibold text-[var(--foreground)] flex items-center gap-1.5 mb-2">
+              <Rows3 size={14} className="text-blue-400" /> 1. Nivel de detalle
+            </h4>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="rp-nivel">
+              {NIVELES.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={nivel === n.id}
+                  onClick={() => { setNivel(n.id); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg border text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500
+                    ${nivel === n.id ? 'bg-blue-600 border-blue-600 text-white' : 'border-[var(--card-border)] text-[var(--foreground)] hover:bg-white/5'}`}
+                >
+                  {n.label}
+                </button>
+              ))}
             </div>
+            <p className="text-xs text-[var(--muted)] mt-2">{nivelCfg.ayuda}</p>
+          </section>
+
+          {/* 2. Columnas */}
+          <section aria-labelledby="rp-columnas" className="pt-5 border-t border-[var(--card-border)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <h4 id="rp-columnas" className="text-xs font-semibold text-[var(--foreground)] flex items-center gap-1.5">
+                <Layers size={14} className="text-emerald-400" /> 2. Columnas a incluir
+                <span className="text-[var(--muted)] font-normal">({metricasActivas.length} de {METRICAS.length})</span>
+              </h4>
+              <div className="flex flex-wrap gap-1.5" aria-label="Atajos de columnas">
+                {ATAJOS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => aplicarAtajo(a.grupos)}
+                    aria-pressed={atajoActivo === a.id}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors
+                      ${atajoActivo === a.id ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-300' : 'border-[var(--card-border)] text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {GRUPOS.map((g) => {
+                const items = METRICAS.filter((m) => m.grupo === g.id);
+                const marcadas = items.filter((m) => seleccion.has(m.key)).length;
+                const todas = marcadas === items.length;
+                return (
+                  <div key={g.id} className="rounded-xl border border-[var(--card-border)] bg-white/[0.02] p-3">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} aria-hidden />
+                        {g.titulo}
+                        <span className="text-xs font-normal text-[var(--muted)]">{marcadas}/{items.length}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => alternarGrupo(g.id)}
+                        className="text-xs text-blue-400 hover:text-blue-300"
+                      >
+                        {todas ? 'Quitar todas' : 'Marcar todas'}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((m) => {
+                        const on = seleccion.has(m.key);
+                        return (
+                          <button
+                            key={m.key}
+                            type="button"
+                            onClick={() => alternar(m.key)}
+                            aria-pressed={on}
+                            title={`Total del período: ${fmt(totalesPorMetrica[m.key])}`}
+                            className={`flex items-center gap-1.5 pl-2 pr-2.5 py-1.5 rounded-lg border text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500
+                              ${on ? 'text-[var(--foreground)] bg-white/[0.06]' : 'text-[var(--muted)] border-[var(--card-border)] hover:bg-white/5'}`}
+                            style={on ? { borderColor: `${g.color}80` } : undefined}
+                          >
+                            <span
+                              className="w-3.5 h-3.5 rounded flex items-center justify-center border"
+                              style={on ? { backgroundColor: g.color, borderColor: g.color } : { borderColor: 'var(--card-border)' }}
+                              aria-hidden
+                            >
+                              {on && <Check size={10} strokeWidth={3} className="text-slate-900" />}
+                            </span>
+                            {m.label}
+                            {hasSearched && <span className="tabular-nums opacity-60">{fmt(totalesPorMetrica[m.key])}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Columnas fijas según el nivel */}
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)] mt-3">
+              <Lock size={12} className="shrink-0" /> Siempre incluidas:
+              {[...nivelCfg.fijas.map((c) => c.label), 'Total visitas'].map((l) => (
+                <span key={l} className="px-1.5 py-0.5 rounded border border-[var(--card-border)] text-[var(--foreground)]/80">{l}</span>
+              ))}
+            </p>
+          </section>
+
+          {/* Resumen de lo que se va a generar */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs px-3 py-2.5 rounded-xl bg-white/[0.03] border border-[var(--card-border)]">
+            {isPending ? (
+              <span className="flex items-center gap-2 text-[var(--muted)]"><RefreshCw className="animate-spin" size={13} /> Actualizando datos…</span>
+            ) : (
+              <span className="text-[var(--foreground)]">
+                El reporte tendrá <strong>{filteredRows.length.toLocaleString('es-PA')}</strong> filas y <strong>{columnasTotales}</strong> columnas,
+                con <strong>{fmt(totalesPorMetrica.total_visitas)}</strong> visitas en total.
+              </span>
+            )}
           </div>
-
-          {/* 4. MARCAR OPCIONES */}
-          <div className="space-y-3 pt-2 border-t border-[var(--card-border)]">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-                <Layers size={14} className="text-emerald-400" /> Columnas a incluir
-              </label>
-            </div>
-
-            {/* Categorías Seleccionables */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)] w-full max-w-full box-border">
-              {/* Grupo 1: Género */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between pb-2 border-b border-[var(--card-border)]">
-                  <span className="text-xs font-bold text-slate-300">Género</span>
-                  <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted)] hover:text-white cursor-pointer select-none font-medium">
-                    <input 
-                      type="checkbox" 
-                      checked={isGroupFullySelected('genero')}
-                      onChange={() => toggleGroup('genero')}
-                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0 w-3 h-3"
-                    />
-                    Todas
-                  </label>
-                </div>
-                <div className="grid grid-cols-1 gap-2 pt-1">
-                  {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'genero').map(col => (
-                    <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
-                      <input
-                        type="checkbox"
-                        checked={!!selectedMetrics[col.key]}
-                        onChange={() => toggleMetric(col.key)}
-                        className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0"
-                      />
-                      {col.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Grupo 2: Tipo de Usuario */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between pb-2 border-b border-[var(--card-border)]">
-                  <span className="text-xs font-bold text-slate-300">Tipo de Usuario</span>
-                  <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted)] hover:text-white cursor-pointer select-none font-medium">
-                    <input 
-                      type="checkbox" 
-                      checked={isGroupFullySelected('tipo_usuario')}
-                      onChange={() => toggleGroup('tipo_usuario')}
-                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0 w-3 h-3"
-                    />
-                    Todas
-                  </label>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2 pt-1">
-                  {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'tipo_usuario').map(col => (
-                    <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
-                      <input
-                        type="checkbox"
-                        checked={!!selectedMetrics[col.key]}
-                        onChange={() => toggleMetric(col.key)}
-                        className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0"
-                      />
-                      {col.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Grupo 3: Servicios */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between pb-2 border-b border-[var(--card-border)]">
-                  <span className="text-xs font-bold text-slate-300">Servicios</span>
-                  <label className="flex items-center gap-1.5 text-[10px] text-[var(--muted)] hover:text-white cursor-pointer select-none font-medium">
-                    <input 
-                      type="checkbox" 
-                      checked={isGroupFullySelected('servicios')}
-                      onChange={() => toggleGroup('servicios')}
-                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0 w-3 h-3"
-                    />
-                    Todas
-                  </label>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2 pt-1">
-                  {METRIC_COLUMN_OPTIONS.filter(c => c.category === 'servicios').map(col => (
-                    <label key={col.key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white select-none">
-                      <input
-                        type="checkbox"
-                        checked={!!selectedMetrics[col.key]}
-                        onChange={() => toggleMetric(col.key)}
-                        className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0"
-                      />
-                      {col.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {isPending && (
-            <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-              <RefreshCw className="animate-spin" size={14} /> Actualizando reporte…
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -388,38 +445,28 @@ export default function ReportePersonalizadoSection({ allInfoplazas, filters, ra
         <Card className="animate-fade-in w-full max-w-full box-border overflow-hidden">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[var(--card-border)]">
             <div>
-              <CardTitle className="text-base font-bold text-slate-200 flex items-center gap-2">
+              <CardTitle className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
                 <Database className="text-blue-500" size={18} />
-                Resultado del Reporte ({filteredRows.length.toLocaleString()} registros)
+                Resultado ({filteredRows.length.toLocaleString('es-PA')} filas, {nivelCfg.label.toLowerCase()})
               </CardTitle>
-              <p className="text-xs text-[var(--muted)] mt-1">
-                Mostrando {paginatedRows.length} registros por página. Total Visitas incluido como columna fija obligatoria.
-              </p>
+              <p className="text-xs text-[var(--muted)] mt-1">La última fila suma todo lo que se ve, incluida la búsqueda.</p>
             </div>
-
-            {/* Acciones de la tabla */}
             <div className="flex items-center gap-3 w-full sm:w-auto">
-              {/* Buscador de resultados */}
               <div className="relative flex-1 sm:flex-none sm:w-64">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted)]" />
                 <input
                   type="text"
                   placeholder="Buscar en el reporte..."
+                  aria-label="Buscar en el reporte"
                   value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                   className="w-full pl-9 pr-4 py-2 bg-white/5 border border-[var(--card-border)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-[var(--muted)]/60"
                 />
               </div>
-
-              {/* Botón Exportar */}
               <button
                 onClick={handleExportExcel}
                 disabled={filteredRows.length === 0}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-lg shadow-emerald-600/20 shrink-0"
-                title="Exportar reporte completo con todas las columnas obligatorias a Excel"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shrink-0"
               >
                 <Download size={16} />
                 <span className="hidden sm:inline">Exportar Excel</span>
@@ -429,99 +476,84 @@ export default function ReportePersonalizadoSection({ allInfoplazas, filters, ra
 
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full min-w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[var(--card-border)] bg-white/[0.01]">
-                    {/* COLUMNAS PRINCIPALES DE UBICACIÓN & TIEMPO */}
-                    <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">N°</th>
-                    <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Infoplaza</th>
-                    <th className="hidden sm:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Regional</th>
-                    <th className="hidden md:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Provincia</th>
-                    <th className="hidden sm:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Año</th>
-                    <th className="hidden sm:table-cell px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Mes</th>
-
-                    {/* COLUMNAS DE MÉTRICAS SELECCIONADAS OPCIONALES */}
-                    {activeMetrics.map(col => (
-                      <th 
-                        key={col.key} 
-                        className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right text-[var(--muted)]"
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-
-                    {/* COLUMNA FIJA OBLIGATORIA FINAL: TOTAL VISITAS */}
-                    <th className="px-3 sm:px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-right text-emerald-400 bg-emerald-500/10">
-                      Total Visitas
+              <thead>
+                <tr className="border-b border-[var(--card-border)] bg-white/[0.01]">
+                  {nivelCfg.fijas.map((c) => (
+                    <th key={c.key} className={`${c.ocultarMovil ? 'hidden md:table-cell' : ''} px-3 sm:px-4 py-3 text-xs font-semibold text-[var(--muted)] whitespace-nowrap ${c.numerica ? 'text-right' : ''}`}>
+                      {c.label}
                     </th>
+                  ))}
+                  {metricasActivas.map((m) => (
+                    <th key={m.key} className="px-3 sm:px-4 py-3 text-xs font-semibold text-right text-[var(--muted)] whitespace-nowrap">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: GRUPOS.find((g) => g.id === m.grupo)!.color }} aria-hidden />
+                      {m.label}
+                    </th>
+                  ))}
+                  <th className="px-3 sm:px-4 py-3 text-xs font-semibold text-right text-emerald-400 bg-emerald-500/10 whitespace-nowrap">Total visitas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--card-border)]">
+                {paginatedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={columnasTotales} className="px-6 py-12 text-center text-sm text-[var(--muted)]">
+                      No se encontraron registros para los filtros aplicados.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--card-border)]">
-                  {paginatedRows.length === 0 ? (
-                    <tr>
-                      <td 
-                        colSpan={7 + activeMetrics.length} 
-                        className="px-6 py-12 text-center text-sm text-[var(--muted)]"
-                      >
-                        No se encontraron registros para los criterios aplicados.
-                      </td>
+                ) : (
+                  paginatedRows.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                      {nivelCfg.fijas.map((c, i) => (
+                        <td
+                          key={c.key}
+                          className={`${c.ocultarMovil ? 'hidden md:table-cell' : ''} px-3 sm:px-4 py-3 text-sm whitespace-nowrap
+                            ${c.numerica ? 'text-right tabular-nums text-[var(--foreground)]' : i <= 1 ? 'font-semibold text-[var(--foreground)]' : 'text-[var(--muted)]'}`}
+                        >
+                          {c.key === 'numero_infoplaza' ? `#${row[c.key]}` : c.numerica ? fmt(row[c.key]) : row[c.key]}
+                        </td>
+                      ))}
+                      {metricasActivas.map((m) => (
+                        <td key={m.key} className="px-3 sm:px-4 py-3 text-sm tabular-nums text-right text-[var(--foreground)]">{fmt(row[m.key])}</td>
+                      ))}
+                      <td className="px-3 sm:px-4 py-3 text-sm tabular-nums text-right font-bold text-emerald-400 bg-emerald-500/5">{fmt(row.total_visitas)}</td>
                     </tr>
-                  ) : (
-                    paginatedRows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
-                        {/* DATOS DE UBICACIÓN & TIEMPO */}
-                        <td className="px-3 sm:px-6 py-3.5 text-sm font-bold text-slate-300">#{row.numero_infoplaza}</td>
-                        <td className="px-3 sm:px-6 py-3.5 text-sm font-semibold text-slate-100 max-w-[140px] sm:max-w-none truncate sm:whitespace-normal" title={row.nombre_infoplaza}>
-                          {row.nombre_infoplaza}
-                        </td>
-                        <td className="hidden sm:table-cell px-6 py-3.5 text-sm text-[var(--muted)]">{row.regional}</td>
-                        <td className="hidden md:table-cell px-6 py-3.5 text-sm text-[var(--muted)]">{row.provincia}</td>
-                        <td className="hidden sm:table-cell px-6 py-3.5 text-sm font-mono text-slate-300">{row.anio}</td>
-                        <td className="hidden sm:table-cell px-6 py-3.5 text-sm font-sans text-slate-300">{row.mes}</td>
-
-                        {/* DATOS DE MÉTRICAS SELECCIONADAS OPCIONALES */}
-                        {activeMetrics.map(col => {
-                          const val = row[col.key];
-                          const isNumeric = typeof val === 'number';
-
-                          return (
-                            <td 
-                              key={col.key} 
-                              className="px-3 sm:px-6 py-3.5 text-sm font-mono text-right text-slate-200"
-                            >
-                              {isNumeric ? val.toLocaleString() : (val ?? 0)}
-                            </td>
-                          );
-                        })}
-
-                        {/* VALOR DE COLUMNA FIJA OBLIGATORIA FINAL: TOTAL VISITAS */}
-                        <td className="px-3 sm:px-6 py-3.5 text-sm font-mono text-right font-extrabold text-emerald-400 bg-emerald-500/5">
-                          {(typeof row.total_visitas === 'number' ? row.total_visitas : 0).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                  ))
+                )}
+              </tbody>
+              {filteredRows.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--card-border)] font-semibold text-[var(--foreground)]">
+                    {nivelCfg.fijas.map((c, i) => (
+                      <td key={c.key} className={`${c.ocultarMovil ? 'hidden md:table-cell' : ''} px-3 sm:px-4 py-3 text-sm`}>{i === 0 ? 'Total' : ''}</td>
+                    ))}
+                    {metricasActivas.map((m) => (
+                      <td key={m.key} className="px-3 sm:px-4 py-3 text-sm tabular-nums text-right">{fmt(totalesTabla[m.key])}</td>
+                    ))}
+                    <td className="px-3 sm:px-4 py-3 text-sm tabular-nums text-right text-emerald-400 bg-emerald-500/10">{fmt(totalesTabla.total_visitas)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
           </CardContent>
 
-          {/* PAGINACIÓN */}
           {totalPages > 1 && (
-            <div className="px-6 py-4 flex items-center justify-between border-t border-[var(--card-border)] bg-white/[0.005]">
+            <div className="px-6 py-4 flex items-center justify-between border-t border-[var(--card-border)]">
               <span className="text-xs text-[var(--muted)] font-medium">
-                Mostrando pág. {currentPage} de {totalPages} ({filteredRows.length} registros)
+                Página {currentPage} de {totalPages} ({filteredRows.length.toLocaleString('es-PA')} filas)
               </span>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-white disabled:opacity-40 transition-all"
+                  aria-label="Página anterior"
+                  className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-40 transition-all"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
-                  className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-white disabled:opacity-40 transition-all"
+                  aria-label="Página siguiente"
+                  className="p-1.5 rounded-lg border border-[var(--card-border)] bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-40 transition-all"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -530,7 +562,6 @@ export default function ReportePersonalizadoSection({ allInfoplazas, filters, ra
           )}
         </Card>
       )}
-
     </div>
   );
 }
