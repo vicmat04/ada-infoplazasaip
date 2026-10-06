@@ -480,7 +480,7 @@ BEGIN
         ELSE COALESCE(MAX(hs.observacion), 'OK')
       END
     ) AS row
-    FROM ipa_infoplazas_activas ipa
+    FROM infoplazas ipa
     LEFT JOIN resumen_servicios rs 
       ON ipa.numero = rs.numero_infoplaza 
       AND (p_anio = 0 OR rs.anio = p_anio)
@@ -492,7 +492,8 @@ BEGIN
       AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
         AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
       AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
-    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia, ipa.distrito, ipa.corregimiento
+    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia, ipa.distrito, ipa.corregimiento, ipa.estado
+      HAVING (LOWER(TRIM(ipa.estado)) != 'cerrada definitivamente' OR COALESCE(SUM(rs.total), 0) > 0)
     ORDER BY COALESCE(SUM(rs.total), 0) DESC
   ) t;
 
@@ -660,7 +661,7 @@ BEGIN
       'otros', COALESCE(SUM(rs.otros), 0),
       'total', COALESCE(SUM(rs.total), 0)
     ) AS row
-    FROM ipa_infoplazas_activas ipa
+    FROM infoplazas ipa
     LEFT JOIN resumen_servicios rs 
       ON ipa.numero = rs.numero_infoplaza 
       AND (p_anio = 0 OR rs.anio = p_anio)
@@ -669,7 +670,8 @@ BEGIN
       AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
         AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
       AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
-    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia
+    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia, ipa.estado
+      HAVING (LOWER(TRIM(ipa.estado)) != 'cerrada definitivamente' OR COALESCE(SUM(rs.total), 0) > 0)
     ORDER BY COALESCE(SUM(rs.total), 0) DESC
   ) t;
 
@@ -845,7 +847,7 @@ BEGIN
       'tercera_edad', COALESCE(SUM(rd.tercera_edad), 0),
       'publico_general', COALESCE(SUM(rd.publico_general), 0)
     ) AS row
-    FROM ipa_infoplazas_activas ipa
+    FROM infoplazas ipa
     LEFT JOIN resumen_demografico rd 
       ON ipa.numero = rd.numero_infoplaza 
       AND (p_anio = 0 OR rd.anio = p_anio)
@@ -854,7 +856,8 @@ BEGIN
       AND (p_provincia = '' OR LOWER(TRIM(ipa.provincia)) = LOWER(TRIM(p_provincia)))
         AND (p_distrito = '' OR LOWER(TRIM(ipa.distrito)) = LOWER(TRIM(p_distrito)))
       AND (p_infoplaza = 0 OR ipa.numero = p_infoplaza)
-    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia
+    GROUP BY ipa.numero, ipa.nombre, ipa.regional, ipa.provincia, ipa.estado
+      HAVING (LOWER(TRIM(ipa.estado)) != 'cerrada definitivamente' OR COALESCE(SUM(rd.total), 0) > 0)
     ORDER BY COALESCE(SUM(rd.total), 0) DESC
   ) t;
 
