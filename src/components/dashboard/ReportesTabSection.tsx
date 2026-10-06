@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import ReporteIndividualSection from './ReporteIndividualSection';
 import ReportePersonalizadoSection from './ReportePersonalizadoSection';
-import { FileText, SlidersHorizontal, BarChart2 } from 'lucide-react';
+import { SlidersHorizontal, BarChart2 } from 'lucide-react';
+import type { RangoMeses } from './FiltersBar';
 
 interface InfoplazaItem {
   numero: number;
@@ -22,15 +23,18 @@ interface ReportesTabSectionProps {
     mes: string;
     regional: string;
     provincia: string;
+    distrito: string;
     infoplaza: number;
+    cuatrimestre: number;
   };
-  onFiltersChange: (filters: any) => void;
+  rango: RangoMeses | null;
+  onFiltersChange: (filters: ReportesTabSectionProps['filters']) => void;
 }
 
 export default function ReportesTabSection({
   allInfoplazas,
-  availablePeriods,
   filters,
+  rango,
   onFiltersChange
 }: ReportesTabSectionProps) {
   // Estado para alternar entre las Sub-pestañas del módulo de Reportes
@@ -71,8 +75,8 @@ export default function ReportesTabSection({
         {/* Indicador contextual ajustado */}
         <div className="px-3 py-1 rounded-lg bg-white/5 border border-[var(--card-border)] text-[11px] text-[var(--muted)] hidden xl:block truncate max-w-sm shrink">
           {subTab === 'personalizado' 
-            ? 'Crea tu propio reporte seleccionando las opciones que necesites'
-            : 'Visualiza la información completa de una Infoplaza específica'
+            ? 'Usa los filtros superiores (el Período permite rango de meses) y elige las columnas'
+            : 'Elige la Infoplaza en el filtro Ubicación de la barra superior'
           }
         </div>
       </div>
@@ -81,7 +85,8 @@ export default function ReportesTabSection({
       {subTab === 'personalizado' ? (
         <ReportePersonalizadoSection 
           allInfoplazas={allInfoplazas}
-          availablePeriods={availablePeriods}
+          filters={filters}
+          rango={rango}
         />
       ) : (
         <ReporteIndividualSection 

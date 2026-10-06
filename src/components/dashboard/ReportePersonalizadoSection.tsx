@@ -15,9 +15,9 @@ import {
   ChevronRight,
   Database,
   Info,
-  CheckCircle
 } from 'lucide-react';
-import { getCustomReportData } from '../../app/actions';
+import { getCustomReportDataV2 } from '../../app/actions';
+import type { RangoMeses } from './FiltersBar';
 import * as XLSX from 'xlsx';
 
 interface InfoplazaItem {
@@ -31,7 +31,11 @@ interface InfoplazaItem {
 
 interface ReportePersonalizadoSectionProps {
   allInfoplazas: InfoplazaItem[];
-  availablePeriods: Array<{ anio: number; mes: string }>;
+  filters: {
+    anio: number; mes: string; regional: string; provincia: string;
+    distrito: string; infoplaza: number; cuatrimestre: number;
+  };
+  rango: RangoMeses | null;
 }
 
 // Métricas de datos opcionales a seleccionar por el usuario
@@ -71,49 +75,26 @@ const MESES_NOMBRES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
-export default function ReportePersonalizadoSection({ allInfoplazas, availablePeriods }: ReportePersonalizadoSectionProps) {
+export default function ReportePersonalizadoSection({ allInfoplazas, filters, rango }: ReportePersonalizadoSectionProps) {
   const [isPending, startTransition] = useTransition();
 
-  // 1. Estados de Filtro de Período
-  const [periodoTipo, setPeriodoTipo] = useState<'mes_actual' | 'mes_anterior' | 'este_anio' | 'anio_anterior' | 'personalizado'>('mes_actual');
-  
-  // Años y Meses disponibles dinámicos extraídos de DB
-  const listaAnios = useMemo(() => {
-    const years = Array.from(new Set(availablePeriods.map(p => p.anio))).sort((a, b) => b - a);
-    return years.length > 0 ? years : [2026, 2025, 2024, 2023];
-  }, [availablePeriods]);
+  // Período y ubicación vienen de la barra de filtros global (un solo lugar para filtrar)
+  const mesLabel = (v: number) => `${MESES_NOMBRES[(v % 100) - 1]} ${Math.floor(v / 100)}`;
+  const resumenFiltros = useMemo(() => {
+    let periodo: string;
+    if (rango) periodo = `${mesLabel(Math.min(rango.desde, rango.hasta))} a ${mesLabel(Math.max(rango.desde, rango.hasta))}`;
+    else if (filters.mes && !filters.mes.startsWith('Q')) periodo = `${filters.mes} ${filters.anio || '(todos los años)'}`;
+    else if (filters.cuatrimestre) periodo = `Cuatrimestre ${filters.cuatrimestre} ${filters.anio || '(todos los años)'}`;
+    else periodo = filters.anio ? `Año ${filters.anio}` : 'Todos los años';
 
-  const [desdeAnio, setDesdeAnio] = useState<number>(listaAnios[0] || 2026);
-  const [desdeMesNum, setDesdeMesNum] = useState<number>(1);
-  const [hastaAnio, setHastaAnio] = useState<number>(listaAnios[0] || 2026);
-  const [hastaMesNum, setHastaMesNum] = useState<number>(12);
-
-  // 2. Estado de Filtro de Regionales
-  const listaRegionales = useMemo(() => {
-    return Array.from(new Set(allInfoplazas.map(ip => ip.regional).filter(Boolean))).sort();
-  }, [allInfoplazas]);
-
-  const [selectedRegionales, setSelectedRegionales] = useState<string[]>(['ALL']);
-
-  const toggleRegional = (reg: string) => {
-    if (reg === 'ALL') {
-      setSelectedRegionales(['ALL']);
-      return;
-    }
-
-    let next = selectedRegionales.filter(r => r !== 'ALL');
-    if (next.includes(reg)) {
-      next = next.filter(r => r !== reg);
-    } else {
-      next.push(reg);
-    }
-
-    if (next.length === 0 || next.length === listaRegionales.length) {
-      setSelectedRegionales(['ALL']);
-    } else {
-      setSelectedRegionales(next);
-    }
-  };
+    const ip = allInfoplazas.find((i) => i.numero === filters.infoplaza);
+    const ambito = ip ? `Infoplaza ${ip.numero} - ${ip.nombre}`
+      : filters.distrito ? `Distrito de ${filters.distrito}`
+      : filters.provincia ? `Provincia de ${filters.provincia}`
+      : filters.regional ? `Regional ${filters.regional}`
+      : 'Todas las regionales';
+    return { periodo, ambito };
+  }, [filters, rango, allInfoplazas]);
 
   // 3. Estado de Métricas Opcionales Seleccionables
   const [selectedMetrics, setSelectedMetrics] = useState<Record<string, boolean>>(() => {
@@ -155,31 +136,20 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
-  // Carga inicial al montar el componente
+  // Se regenera automáticamente cada vez que cambian los filtros superiores
+  const filtrosKey = JSON.stringify({ filters, rango });
   useEffect(() => {
-    fetchReport();
-  }, []);
-
-  const fetchReport = () => {
+    let vivo = true;
     startTransition(async () => {
-      const res = await getCustomReportData({
-        periodoTipo,
-        desdeAnio: periodoTipo === 'personalizado' ? desdeAnio : undefined,
-        desdeMes: periodoTipo === 'personalizado' ? desdeMesNum : undefined,
-        hastaAnio: periodoTipo === 'personalizado' ? hastaAnio : undefined,
-        hastaMes: periodoTipo === 'personalizado' ? hastaMesNum : undefined,
-        regionales: selectedRegionales
-      });
-
-      if (res.success && res.data) {
-        setReportRows(res.data);
-      } else {
-        setReportRows([]);
-      }
+      const res = await getCustomReportDataV2({ ...filters, desde: rango?.desde ?? null, hasta: rango?.hasta ?? null });
+      if (!vivo) return;
+      setReportRows(res.success ? res.data : []);
       setHasSearched(true);
       setCurrentPage(1);
     });
-  };
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtrosKey]);
 
   // Métricas seleccionadas activas
   const activeMetrics = useMemo(() => {
@@ -258,7 +228,8 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte');
     
-    XLSX.writeFile(workbook, `Reporte_Infoplazas_${new Date().toISOString().slice(0,10)}.xlsx`);
+    const slug = `${resumenFiltros.periodo}_${resumenFiltros.ambito}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_');
+    XLSX.writeFile(workbook, `Reporte_Infoplazas_${slug}.xlsx`);
   };
 
   return (
@@ -278,125 +249,22 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
         </CardHeader>
         <CardContent className="pt-2 space-y-6 w-full max-w-full box-border">
           
-          {/* 1. SELECCIÓN DE PERÍODO TEMPORAL */}
-          <div className="space-y-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-              <Calendar size={14} className="text-blue-400" /> 1. Período de Tiempo
-            </label>
-            
-            <div className="flex flex-wrap gap-2 w-full">
-              {[
-                { id: 'mes_actual', label: 'Mes Actual' },
-                { id: 'mes_anterior', label: 'Mes Anterior' },
-                { id: 'este_anio', label: 'Este Año' },
-                { id: 'anio_anterior', label: 'Año Anterior' },
-                { id: 'personalizado', label: 'Personalizado' },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setPeriodoTipo(item.id as any)}
-                  className={`flex-1 sm:flex-initial min-w-[110px] px-3.5 py-2.5 rounded-xl text-xs font-medium border transition-all text-center whitespace-nowrap ${
-                    periodoTipo === item.id 
-                      ? 'bg-blue-600/20 text-blue-400 border-blue-500/40 shadow-sm font-bold'
-                      : 'bg-white/5 text-[var(--muted)] border-[var(--card-border)] hover:bg-white/10 hover:text-slate-200'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Selector de Rango Personalizado */}
-            {periodoTipo === 'personalizado' && (
-              <div className="p-4 rounded-xl bg-white/[0.02] border border-[var(--card-border)] grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                <div>
-                  <span className="text-xs text-[var(--muted)] font-medium block mb-1.5">Desde (Año / Mes):</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={desdeAnio}
-                      onChange={e => setDesdeAnio(Number(e.target.value))}
-                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
-                    >
-                      {listaAnios.map(a => (
-                        <option key={a} value={a} className="bg-slate-900">{a}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={desdeMesNum}
-                      onChange={e => setDesdeMesNum(Number(e.target.value))}
-                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
-                    >
-                      {MESES_NOMBRES.map((m, idx) => (
-                        <option key={m} value={idx + 1} className="bg-slate-900">{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-xs text-[var(--muted)] font-medium block mb-1.5">Hasta (Año / Mes):</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={hastaAnio}
-                      onChange={e => setHastaAnio(Number(e.target.value))}
-                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
-                    >
-                      {listaAnios.map(a => (
-                        <option key={a} value={a} className="bg-slate-900">{a}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={hastaMesNum}
-                      onChange={e => setHastaMesNum(Number(e.target.value))}
-                      className="bg-white/5 border border-[var(--card-border)] text-xs text-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500"
-                    >
-                      {MESES_NOMBRES.map((m, idx) => (
-                        <option key={m} value={idx + 1} className="bg-slate-900">{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 2. SELECCIÓN MULTI-REGIONAL */}
-          <div className="space-y-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-              <MapPin size={14} className="text-indigo-400" /> 2. Cobertura Regional
-            </label>
-
+          {/* FILTROS APLICADOS (vienen de la barra superior) */}
+          <div className="p-3.5 rounded-xl bg-white/[0.03] border border-[var(--card-border)] flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
+            <span className="flex items-center gap-1.5 text-[var(--muted)] text-xs shrink-0">
+              <Filter size={14} className="text-blue-400" /> Filtros aplicados
+            </span>
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => toggleRegional('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                  selectedRegionales.includes('ALL')
-                    ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/40 font-bold'
-                    : 'bg-white/5 text-[var(--muted)] border-[var(--card-border)] hover:bg-white/10'
-                }`}
-              >
-                Todas las Regionales
-              </button>
-
-              {listaRegionales.map(reg => {
-                const isSelected = selectedRegionales.includes('ALL') || selectedRegionales.includes(reg);
-                return (
-                  <button
-                    key={reg}
-                    onClick={() => toggleRegional(reg)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                      isSelected
-                        ? 'bg-blue-600/15 text-blue-400 border-blue-500/30 font-semibold'
-                        : 'bg-white/5 text-[var(--muted)] border-[var(--card-border)] hover:bg-white/10'
-                    }`}
-                  >
-                    {reg}
-                  </button>
-                );
-              })}
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600/15 text-blue-300 border border-blue-500/30 text-xs font-medium">
+                <Calendar size={12} /> {resumenFiltros.periodo}
+              </span>
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600/15 text-indigo-300 border border-indigo-500/30 text-xs font-medium">
+                <MapPin size={12} /> {resumenFiltros.ambito}
+              </span>
             </div>
+            <span className="text-xs text-[var(--muted)] sm:ml-auto">
+              Cámbialos en la barra superior; para varios meses o años activa &quot;Rango de meses&quot; en el Período.
+            </span>
           </div>
 
           {/* 3. AVISO INFORMATIVO DE COLUMNAS OBLIGATORIAS E INAMOVIBLES */}
@@ -412,7 +280,7 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
           <div className="space-y-3 pt-2 border-t border-[var(--card-border)]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-                <Layers size={14} className="text-emerald-400" /> 3. Seleccionar opciones a incluir
+                <Layers size={14} className="text-emerald-400" /> Columnas a incluir
               </label>
             </div>
 
@@ -507,25 +375,11 @@ export default function ReportePersonalizadoSection({ allInfoplazas, availablePe
             </div>
           </div>
 
-          {/* BOTÓN DE GENERAR REPORTE */}
-          <div className="flex justify-end pt-2 w-full max-w-full box-border">
-            <button
-              onClick={fetchReport}
-              disabled={isPending}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
-            >
-              {isPending ? (
-                <>
-                  <RefreshCw className="animate-spin" size={16} /> Generando reporte...
-                </>
-              ) : (
-                <>
-                  <Filter size={16} /> Generar reporte
-                </>
-              )}
-            </button>
-          </div>
-
+          {isPending && (
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+              <RefreshCw className="animate-spin" size={14} /> Actualizando reporte…
+            </div>
+          )}
         </CardContent>
       </Card>
 

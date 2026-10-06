@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import Sidebar from '../components/dashboard/Sidebar';
 import Topbar from '../components/dashboard/Topbar';
-import FiltersBar from '../components/dashboard/FiltersBar';
+import FiltersBar, { type RangoMeses } from '../components/dashboard/FiltersBar';
 import KpiGrid from '../components/dashboard/KpiGrid';
 import ServiceSection from '../components/dashboard/ServiceSection';
 import VisitantesTabSection from '../components/dashboard/VisitantesTabSection';
@@ -93,6 +93,9 @@ export default function Page() {
     infoplaza: 0,
     cuatrimestre: 0,
   });
+
+  // Rango de meses: solo lo usan las vistas que lo soportan (Reportes)
+  const [rango, setRango] = useState<RangoMeses | null>(null);
 
   const [allInfoplazas, setAllInfoplazas] = useState<InfoplazaItem[]>([]);
   const [availablePeriods, setAvailablePeriods] = useState<any[]>([]);
@@ -206,7 +209,9 @@ export default function Page() {
           ? 'Salud y Sincronización de Red'
           : 'Auditoría de Sincronización';
       case 'reportes':
-        return 'Reporte Individual por Infoplaza';
+        return 'Reportes';
+      case 'capacitaciones':
+        return 'Capacitaciones y actividades';
       case 'administracion':
         return 'Panel de Administración';
       default:
@@ -261,6 +266,9 @@ export default function Page() {
                 onFiltersChange={handleFiltersChange} 
                 allInfoplazas={allInfoplazas} 
                 availablePeriods={availablePeriods}
+                permitirRango={activeTab === 'reportes'}
+                rango={rango}
+                onRangoChange={setRango}
               />
             </div>
           )}
@@ -404,6 +412,7 @@ export default function Page() {
                   allInfoplazas={allInfoplazas} 
                   availablePeriods={availablePeriods}
                   filters={filters} 
+                  rango={rango}
                   onFiltersChange={handleFiltersChange}
                 />
               )}

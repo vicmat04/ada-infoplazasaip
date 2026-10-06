@@ -53,9 +53,11 @@ interface ReporteIndividualSectionProps {
     mes: string;
     regional: string;
     provincia: string;
+    distrito: string;
     infoplaza: number;
+    cuatrimestre: number;
   };
-  onFiltersChange: (filters: any) => void;
+  onFiltersChange: (filters: ReporteIndividualSectionProps['filters']) => void;
 }
 
 const COLORS = {
@@ -78,64 +80,16 @@ const COLORS = {
 };
 
 export default function ReporteIndividualSection({ allInfoplazas, filters, onFiltersChange }: ReporteIndividualSectionProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedIp, setSelectedIp] = useState<InfoplazaItem | null>(null);
-  
+  // La Infoplaza se elige en el buscador de la barra de filtros superior
+  const selectedIp = useMemo(
+    () => (filters.infoplaza ? allInfoplazas.find((i) => i.numero === filters.infoplaza) ?? null : null),
+    [filters.infoplaza, allInfoplazas]
+  );
   const [reportData, setReportData] = useState<any>(null);
   const [syncHistory, setSyncHistory] = useState<any>(null);
   const [monthlyConsolidated, setMonthlyConsolidated] = useState<any[]>([]);
   const [isPending, startTransition] = useTransition();
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-
-  // 1. Sincronización en doble vía: del Estado Global (FiltersBar) al Estado Local
-  useEffect(() => {
-    if (filters.infoplaza !== 0) {
-      const ip = allInfoplazas.find(i => i.numero === filters.infoplaza);
-      if (ip) {
-        setSelectedIp(ip);
-        setSearchQuery(`${ip.numero} - ${ip.nombre}`);
-      }
-    } else {
-      setSelectedIp(null);
-      setSearchQuery('');
-      setReportData(null);
-      setSyncHistory(null);
-      setMonthlyConsolidated([]);
-    }
-  }, [filters.infoplaza, allInfoplazas]);
-
-  // Resetear la selección si la regional/provincia activa en los filtros globales cambia
-  // y la Infoplaza seleccionada ya no pertenece a esos criterios geográficos
-  useEffect(() => {
-    if (!selectedIp) return;
-    const matchesRegional = !filters.regional || selectedIp.regional.toLowerCase().trim() === filters.regional.toLowerCase().trim();
-    const matchesProvincia = !filters.provincia || selectedIp.provincia.toLowerCase().trim() === filters.provincia.toLowerCase().trim();
-    
-    if (!matchesRegional || !matchesProvincia) {
-      onFiltersChange({ ...filters, infoplaza: 0 });
-    }
-  }, [filters.regional, filters.provincia, selectedIp, filters, onFiltersChange]);
-
-  // Filtrar el catálogo según búsquedas y filtros geográficos heredados (RBAC-Ready)
-  const filteredCatalog = useMemo(() => {
-    return allInfoplazas.filter(ip => {
-      // Filtrar por restricciones geográficas globales heredadas del padre (seguridad y consistencia)
-      if (filters.regional && ip.regional.toLowerCase().trim() !== filters.regional.toLowerCase().trim()) return false;
-      if (filters.provincia && ip.provincia.toLowerCase().trim() !== filters.provincia.toLowerCase().trim()) return false;
-
-      // Filtrar por query de búsqueda
-      if (!searchQuery) return true;
-      if (selectedIp && searchQuery === `${selectedIp.numero} - ${selectedIp.nombre}`) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        ip.nombre.toLowerCase().includes(q) ||
-        ip.numero.toString().includes(q) ||
-        ip.regional.toLowerCase().includes(q) ||
-        ip.provincia.toLowerCase().includes(q)
-      );
-    });
-  }, [allInfoplazas, filters.regional, filters.provincia, searchQuery, selectedIp]);
 
   // Cargar datos del reporte individual de la Infoplaza seleccionada
   useEffect(() => {
@@ -147,8 +101,10 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
         getDashboardData({
           anio: filters.anio,
           mes: filters.mes,
+          cuatrimestre: filters.cuatrimestre || 0,
           regional: selectedIp.regional,
           provincia: selectedIp.provincia,
+          distrito: selectedIp.distrito,
           infoplaza: selectedIp.numero
         }),
         getSyncPageData({
@@ -171,7 +127,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
         setMonthlyConsolidated(resMonthly.data);
       }
     });
-  }, [selectedIp, filters.anio, filters.mes]);
+  }, [selectedIp, filters.anio, filters.mes, filters.cuatrimestre]);
 
   // Perfilado inteligente de la Infoplaza (Foco Social vs Educativo, Capacitación vs Conectividad)
   const profiling = useMemo(() => {
@@ -364,87 +320,28 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
 
   return (
     <div className="space-y-6">
-      {/* 1. Selector Inteligente de Infoplaza */}
-      <Card className="bg-[var(--card-bg)] border-[var(--card-border)] relative z-20">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* 1. Infoplaza seleccionada (se elige en la barra de filtros superior) */}
+      {selectedIp && (
+        <Card className="bg-[var(--card-bg)] border-[var(--card-border)]">
+          <CardContent className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-[var(--foreground)] flex items-center gap-2">
                 <FileText className="text-blue-500" size={20} />
-                Selección de Infoplaza para Diagnóstico
+                Infoplaza {selectedIp.numero} - {selectedIp.nombre}
               </h2>
-              <p className="text-xs text-[var(--muted)] mt-1">
-                Generá informes ejecutivos individuales, diagnósticos de impacto social e historial mensual de cualquier sucursal activa.
+              <p className="text-xs text-[var(--muted)] mt-1 flex items-center gap-1.5">
+                <MapPin size={12} /> Regional {selectedIp.regional}, {selectedIp.provincia}, {selectedIp.distrito}
+                {selectedIp.corregimiento ? `, ${selectedIp.corregimiento}` : ''}
               </p>
             </div>
-
-            {/* Buscador / Selector Autocomplete */}
-            <div className="relative w-full md:w-96">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={16} />
-                <input
-                  type="text"
-                  placeholder="Buscar por N°, nombre, distrito o regional..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setIsDropdownOpen(true);
-                  }}
-                  onFocus={() => setIsDropdownOpen(true)}
-                  className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded-xl pl-9 pr-4 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-blue-500 transition-colors"
-                />
-              </div>
-
-              {/* Menú Desplegable Autocomplete */}
-              {isDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 max-h-64 overflow-y-auto bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl shadow-2xl z-50 divide-y divide-[var(--card-border)]">
-                  {filteredCatalog.length === 0 ? (
-                    <div className="p-4 text-xs text-[var(--muted)] text-center">
-                      No se encontraron Infoplazas con esos criterios
-                    </div>
-                  ) : (
-                    filteredCatalog.map((ip) => (
-                      <button
-                        key={ip.numero}
-                        onClick={() => {
-                          setSelectedIp(ip);
-                          setSearchQuery(`${ip.numero} - ${ip.nombre}`);
-                          setIsDropdownOpen(false);
-                          onFiltersChange({ ...filters, infoplaza: ip.numero });
-                        }}
-                        className={`w-full text-left p-3 hover:bg-blue-600/10 transition-colors flex items-center justify-between ${
-                          selectedIp?.numero === ip.numero ? 'bg-blue-600/15 border-l-4 border-blue-500' : ''
-                        }`}
-                      >
-                        <div>
-                          <div className="text-sm font-semibold text-[var(--foreground)]">
-                            #{ip.numero} - {ip.nombre}
-                          </div>
-                          <div className="text-xs text-[var(--muted)] flex items-center gap-2 mt-0.5">
-                            <span>{ip.regional}</span>
-                            <span>•</span>
-                            <span>{ip.provincia}</span>
-                          </div>
-                        </div>
-                        <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
-                          Ver Ficha
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Cierre del menú de selección al hacer clic fuera */}
-      {isDropdownOpen && (
-        <div 
-          className="fixed inset-0 z-10" 
-          onClick={() => setIsDropdownOpen(false)}
-        />
+            <button
+              onClick={() => onFiltersChange({ ...filters, infoplaza: 0, distrito: '' })}
+              className="text-xs text-[var(--muted)] hover:text-rose-400 self-start md:self-auto"
+            >
+              Cambiar Infoplaza
+            </button>
+          </CardContent>
+        </Card>
       )}
 
       {/* 2. Estado Inicial (Sin selección) */}
@@ -455,7 +352,7 @@ export default function ReporteIndividualSection({ allInfoplazas, filters, onFil
           </div>
           <h3 className="text-lg font-bold text-[var(--foreground)]">Ninguna Infoplaza seleccionada</h3>
           <p className="text-sm text-[var(--muted)] max-w-md mx-auto mt-2">
-            Escribí el número o nombre de la Infoplaza en el buscador superior para generar su informe individual, diagnóstico operativo y desglose de servicios.
+            Elige la Infoplaza en el filtro &quot;Ubicación&quot; de la barra superior (puedes buscarla por número, nombre o distrito) para generar su informe individual, diagnóstico operativo y desglose de servicios.
           </p>
         </div>
       )}

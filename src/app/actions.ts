@@ -330,6 +330,34 @@ export async function getCustomReportData(params: {
   }
 }
 
+/**
+ * Reporte personalizado alimentado por la barra de filtros global.
+ * Si llega un rango (AAAAMM), tiene prioridad sobre año/mes/cuatrimestre.
+ */
+export async function getCustomReportDataV2(params: DashboardFilters & { desde?: number | null; hasta?: number | null }) {
+  try {
+    const usaRango = !!(params.desde && params.hasta);
+    const mes = params.mes && !params.mes.startsWith('Q') ? params.mes : '';
+    const { data, error } = await supabaseAdmin.rpc('ipa_get_custom_report_v2', {
+      p_anio: usaRango ? 0 : params.anio || 0,
+      p_mes: usaRango ? '' : mes,
+      p_cuatrimestre: usaRango ? 0 : params.cuatrimestre || 0,
+      p_desde: usaRango ? params.desde : null,
+      p_hasta: usaRango ? params.hasta : null,
+      p_regional: params.regional || '',
+      p_provincia: params.provincia || '',
+      p_distrito: params.distrito || '',
+      p_infoplaza: params.infoplaza || 0,
+    });
+    if (error) throw error;
+    return { success: true as const, data: (data || []) as Record<string, unknown>[] };
+  } catch (error: unknown) {
+    console.error('Error en Server Action getCustomReportDataV2:', error);
+    const msg = error instanceof Error ? error.message : (error as { message?: string })?.message;
+    return { success: false as const, error: msg || 'Error al obtener el reporte personalizado' };
+  }
+}
+
 // Server Action para obtener datos para la tabla comparativa de crecimiento mensual
 export async function getComparativeGrowthData(filters: DashboardFilters, meses: number[]) {
   try {
